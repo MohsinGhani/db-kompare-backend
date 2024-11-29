@@ -46,19 +46,6 @@ To interact with AWS, you'll need to configure the **AWS CLI** with your AWS cre
   - **AWS Region**: Ensure the region matches your `aws configure` setup.
   - **Environment Variables**: Add Environment variables file. (.env file is only for api-functions)
 
-### 5. Deploy the Project to AWS
-Deploy your serverless application to AWS using the Serverless Framework:
-```bash
-serverless deploy
-```
-
-This will:
-- Deploy your Lambda functions.
-- Set up API Gateway endpoints.
-- Create or update other AWS resources defined in `serverless.yml`.
-
-### 6. Get the API URL
-After deployment, you will see a URL for the **API Gateway** in the terminal output. This URL is your endpoint to test the deployed functions.
 
 ---
 
