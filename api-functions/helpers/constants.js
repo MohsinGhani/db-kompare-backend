@@ -1,0 +1,24 @@
+export const TABLE_NAME = {
+  DATABASES: process.env.DATABASES_TABLE,
+  METRICES: process.env.METRICES_TABLE,
+  DATABASE_RANKINGS: process.env.RANKING_TABLE,
+};
+
+export const STATUS_CODE = {
+  NOT_FOUND: 404,
+  BAD_REQUEST: 400,
+  SUCCESS: 200,
+};
+
+export const DATABASE_STATUS = {
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+};
+
+export const RESOURCE_TYPE = {
+  GITHUB: "GITHUB",
+  STACKOVERFLOW: "STACKOVERFLOW",
+  GOOGLE: "GOOGLE",
+  BING: "BING",
+  ALL: "ALL",
+};

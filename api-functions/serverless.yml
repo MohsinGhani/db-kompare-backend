@@ -1,0 +1,156 @@
+org: dbkompare
+app: db-kompare
+service: api-functions
+configValidationMode: error
+
+useDotenv: true
+
+custom:
+  lambdaInitialArn: arn:aws:lambda:${self:provider.region}:${aws:accountId}:function:${self:service}-${self:provider.stage}
+  databasesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DATABASES_TABLE}
+  metricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.METRICES_TABLE}
+  databaseRankingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.RANKING_TABLE}
+  serverless-offline:
+    httpPort: 4000
+
+plugins:
+  - serverless-dotenv-plugin
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: eu-west-1
+  stage: ${opt:stage, 'dev'}
+  profile: dbkompare
+  environment:
+    DATABASES_TABLE: db-kompare-databases-${self:provider.stage}
+    METRICES_TABLE: db-kompare-metrices-${self:provider.stage}
+    RANKING_TABLE: db-kompare-database-rankings-${self:provider.stage}
+    STACK_API_KEY: ${env:STACK_API_KEY}
+    GITHUB_TOKEN: ${env:GITHUB_TOKEN}
+    GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
+    GOOGLE_CSE_ID: ${env:GOOGLE_CSE_ID}
+    BING_API_KEY: ${env:BING_API_KEY}
+
+  apiGateway:
+    apiKeys:
+      - name: myFirstKey
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Scan
+            - dynamodb:Query
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - ${self:custom.databasesTableArn}/index/byStatus
+            - ${self:custom.metricesTableArn}/index/byStatusAndDate
+            - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate
+            - ${self:custom.databasesTableArn} # Permission for databases table
+            - ${self:custom.metricesTableArn} # Permission for metrices table
+            - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
+functions:
+  createDatabase:
+    handler: functions/databases/createDatabase.handler
+    events:
+      - http:
+          path: /create-database
+          method: post
+          private: true
+          cors: true
+  getallDatabases:
+    handler: functions/databases/getAllDatabases.handler
+    events:
+      - http:
+          path: /get-databases
+          method: get
+          private: true
+          cors: true
+  getRankings:
+    handler: functions/rankings/getRankings.handler
+    events:
+      - http:
+          path: /get-rankings
+          method: post
+          private: true
+          cors: true
+
+  getDatabasesByIds:
+    handler: functions/databases/getDatabaseByIds.handler
+    events:
+      - http:
+          path: /get-database-by-ids
+          method: post
+          cors: true
+          private: true
+  addMetrices:
+    handler: functions/metrices/addMetrices.handler
+    timeout: 300
+    events:
+      - http:
+          path: /add-metrices
+          method: post
+          cors: true
+          private: true
+  getMetrices:
+    handler: functions/metrices/getMetrices.handler
+    events:
+      - http:
+          path: /get-metrices
+          method: post
+          cors: true
+          private: true
+  getDatabasesCount:
+    handler: functions/databases/getDatabasesCount.handler
+    events:
+      - http:
+          path: /get-databases-count
+          method: get
+          cors: true
+          private: true
+  getGithubMetrices:
+    handler: functions/metrices/getGithubMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(0 5 * * ? *) # Runs daily at 5:00 AM UTC
+  getStackoverflowMetrices:
+    handler: functions/metrices/getStackoverflowMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(0 5 * * ? *) # Runs daily at 5:00 AM UTC
+
+  getGoogleMetrices:
+    handler: functions/metrices/getGoogleMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(15 5 * * ? *) # Runs daily at 5:15 PM UTC
+
+  getBingMetrices:
+    handler: functions/metrices/getBingMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(30 5 * * ? *) # Runs daily at 5:30 PM UTC
+
+  updatePopularity:
+    handler: functions/metrices/updatePopularity.handler
+    events:
+      - schedule:
+          rate: cron(40 5 * * ? *) # Runs daily at 5:40 PM UTC
+
+  addRanking:
+    handler: functions/rankings/addRanking.handler
+    events:
+      - schedule:
+          rate: cron(50 5 * * ? *) # Runs daily at 5:45 PM UTC

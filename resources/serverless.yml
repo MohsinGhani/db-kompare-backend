@@ -1,0 +1,86 @@
+org: dbkompare
+app: db-kompare
+service: db-kompare-resources
+configValidationMode: error
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: eu-west-1
+  stage: ${opt:stage, 'dev'}
+  profile: dbkompare
+
+resources:
+  Resources:
+    Databases:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-databases-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+    Metrices:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-metrices-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: database_id
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S
+          - AttributeName: includeMe
+            AttributeType: S
+        KeySchema:
+          - AttributeName: database_id
+            KeyType: HASH
+          - AttributeName: date
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: byStatusAndDate
+            KeySchema:
+              - AttributeName: includeMe
+                KeyType: HASH
+              - AttributeName: date
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+    DatabaseRankings:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-database-rankings-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S
+          - AttributeName: includeMe
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+          - AttributeName: date
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: byStatusAndDate
+            KeySchema:
+              - AttributeName: includeMe
+                KeyType: HASH
+              - AttributeName: date
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
