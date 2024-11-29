@@ -9,7 +9,7 @@ This is a serverless application using the **AWS Serverless Framework** with **N
 ### 1. Clone the Repository
 Clone the project to your local machine:
 ```bash
-git clone [repo_link](https://github.com/MohsinGhani/db-kompare-backend.git)
+git clone https://github.com/MohsinGhani/db-kompare-backend.git
 ```
 
 ### 2. Install Dependencies
