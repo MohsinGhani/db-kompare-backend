@@ -51,4 +51,3 @@ To interact with AWS, you'll need to configure the **AWS CLI** with your AWS cre
 
 That's it! Your serverless application is now live on AWS.
 
----
