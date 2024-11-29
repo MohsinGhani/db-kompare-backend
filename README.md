@@ -9,13 +9,13 @@ This is a serverless application using the **AWS Serverless Framework** with **N
 ### 1. Clone the Repository
 Clone the project to your local machine:
 ```bash
-git clone repo_link
-cd aws-serverless-nodejs
+git clone https://github.com/MohsinGhani/db-kompare-backend.git
 ```
 
 ### 2. Install Dependencies
 Install the required Node.js packages for specific stacks. In our Project only api-functions needs node modules.
 ```bash
+cd api-functions
 npm install
 ```
 
