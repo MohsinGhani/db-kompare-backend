@@ -3,6 +3,7 @@ import {
   getTwoDaysAgoDate,
   sendResponse,
   calculateBingPopularity,
+  delay,
 } from "../../helpers/helpers.js";
 import { TABLE_NAME, DATABASE_STATUS } from "../../helpers/constants.js";
 import {
@@ -134,6 +135,7 @@ export const handler = async (event) => {
       });
 
       console.log(`Successfully updated Bing data for name: ${name}`);
+      await delay(1000);
     }
 
     return sendResponse(200, "Bing data updated successfully", true);
