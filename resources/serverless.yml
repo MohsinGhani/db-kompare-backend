@@ -12,6 +12,30 @@ provider:
 
 resources:
   Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-users-${self:provider.stage}
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH # Primary partition key
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S # String type for id (primary key)
+          - AttributeName: status
+            AttributeType: S # String type for status
+          - AttributeName: role
+            AttributeType: S # String type for role
+        GlobalSecondaryIndexes:
+          - IndexName: byStatusandRole
+            KeySchema:
+              - AttributeName: status # Partition key for the GSI
+                KeyType: HASH
+              - AttributeName: role # Sort key for the GSI
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL # Include all attributes in the index
+        BillingMode: PAY_PER_REQUEST
     Databases:
       Type: AWS::DynamoDB::Table
       Properties:
