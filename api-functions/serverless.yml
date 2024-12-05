@@ -10,6 +10,7 @@ custom:
   databasesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DATABASES_TABLE}
   metricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.METRICES_TABLE}
   databaseRankingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.RANKING_TABLE}
+  commentsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMMENTS_TABLE}
   serverless-offline:
     httpPort: 4000
 
@@ -27,6 +28,7 @@ provider:
     DATABASES_TABLE: db-kompare-databases-${self:provider.stage}
     METRICES_TABLE: db-kompare-metrices-${self:provider.stage}
     RANKING_TABLE: db-kompare-database-rankings-${self:provider.stage}
+    COMMENTS_TABLE: db-kompare-comments-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -154,3 +156,11 @@ functions:
     events:
       - schedule:
           rate: cron(50 5 * * ? *) # Runs daily at 5:45 PM UTC
+  createComment:
+    handler: functions/comments/createComment.handler
+    events:
+      - http:
+          path: /create-comment
+          method: post
+          private: true
+          cors: true

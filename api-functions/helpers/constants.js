@@ -2,6 +2,7 @@ export const TABLE_NAME = {
   DATABASES: process.env.DATABASES_TABLE,
   METRICES: process.env.METRICES_TABLE,
   DATABASE_RANKINGS: process.env.RANKING_TABLE,
+  COMMENTS: process.env.COMMENTS_TABLE,
 };
 
 export const STATUS_CODE = {
