@@ -1,9 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 
-import { USER_ROLE } from "../../helpers/constants.JS";
-import { addUserToGroup, adminUpdateUserAttributes } from "../../helpers/auth";
-import { createItemInDynamoDB } from "../../helpers/dynamodb";
-import { TABLE_NAME } from "../../helpers/constants";
+import {
+  addUserToGroup,
+  adminUpdateUserAttributes,
+} from "../../helpers/auth.js";
+import { createItemInDynamoDB } from "../../helpers/dynamodb.js";
+import { TABLE_NAME, USER_ROLE, USER_STATUS } from "../../helpers/constants.js";
 
 const { COGNITO_USER_POOL_ID } = process.env;
 

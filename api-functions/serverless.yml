@@ -185,6 +185,11 @@ resources:
         UserPoolId: !Ref DbKompare
 
 functions:
+  postConfirmation:
+    handler: functions/auth/postConfirmation.handler
+    environment:
+      COGNITO_USER_POOL_ID: !Ref DbKompare
+
   createDatabase:
     handler: functions/databases/createDatabase.handler
     events:

@@ -20,6 +20,10 @@ export const USER_ROLE = {
   ADMIN: "ADMIN",
   VENDOR: "VENDOR",
 };
+export const USER_STATUS = {
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+};
 
 export const RESOURCE_TYPE = {
   GITHUB: "GITHUB",
