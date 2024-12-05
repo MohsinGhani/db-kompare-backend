@@ -2,6 +2,7 @@ export const TABLE_NAME = {
   DATABASES: process.env.DATABASES_TABLE,
   METRICES: process.env.METRICES_TABLE,
   DATABASE_RANKINGS: process.env.RANKING_TABLE,
+  USERS: process.env.USERS_TABLE,
   COMMENTS: process.env.COMMENTS_TABLE,
 };
 
@@ -12,6 +13,15 @@ export const STATUS_CODE = {
 };
 
 export const DATABASE_STATUS = {
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+};
+
+export const USER_ROLE = {
+  ADMIN: "ADMIN",
+  VENDOR: "VENDOR",
+};
+export const USER_STATUS = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
 };
