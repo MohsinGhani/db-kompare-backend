@@ -1,9 +1,9 @@
-const AWS = require("aws-sdk");
-const { getItem } = require("./../lib/dynamodb");
+import AWS from "aws-sdk";
+import { getItem } from "./dynamodb.js";
+
 const serviceProvider = new AWS.CognitoIdentityServiceProvider();
 
-const adminConfirmSignUp = (Username, userPoodId) => {
-  // console.log('=> lib/auth.js: Username, ', Username)
+export const adminConfirmSignUp = (Username, userPoodId) => {
   return new Promise((res, rej) => {
     serviceProvider.adminConfirmSignUp(
       {
@@ -27,7 +27,7 @@ const adminConfirmSignUp = (Username, userPoodId) => {
   });
 };
 
-const adminGetUser = (Username, userPoodId) => {
+export const adminGetUser = (Username, userPoodId) => {
   console.log("Username", Username);
   return serviceProvider
     .adminGetUser({
@@ -37,7 +37,7 @@ const adminGetUser = (Username, userPoodId) => {
     .promise();
 };
 
-const resendConfirmationCode = (Username, userPoodId) => {
+export const resendConfirmationCode = (Username, userPoodId) => {
   return serviceProvider
     .resendConfirmationCode({
       ClientId: userPoodId,
@@ -46,11 +46,11 @@ const resendConfirmationCode = (Username, userPoodId) => {
     .promise();
 };
 
-const adminForgetUserDevice = (params) => {
+export const adminForgetUserDevice = (params) => {
   return serviceProvider.adminForgetDevice(params).promise();
 };
 
-const isUserExistInCognito = (Username, userPoodId) => {
+export const isUserExistInCognito = (Username, userPoodId) => {
   return new Promise((res, rej) => {
     serviceProvider.adminGetUser(
       {
@@ -66,8 +66,7 @@ const isUserExistInCognito = (Username, userPoodId) => {
   });
 };
 
-const adminUpdateUserAttributes = (Username, attributes, userPoodId) => {
-  // console.log('=> /lib/auth.js : adminUpdateUserAttributes : Username', Username)
+export const adminUpdateUserAttributes = (Username, attributes, userPoodId) => {
   return new Promise((res, rej) => {
     serviceProvider.adminUpdateUserAttributes(
       {
@@ -88,7 +87,7 @@ const adminUpdateUserAttributes = (Username, attributes, userPoodId) => {
   });
 };
 
-const disableCognitoUser = (userId, userPoolId) => {
+export const disableCognitoUser = (userId, userPoolId) => {
   return new Promise((res, rej) => {
     serviceProvider.adminDisableUser(
       {
@@ -108,7 +107,7 @@ const disableCognitoUser = (userId, userPoolId) => {
   });
 };
 
-const enableCognitoUser = (userId, userPoolId) => {
+export const enableCognitoUser = (userId, userPoolId) => {
   return new Promise((res, rej) => {
     getItem("User", { userId })
       .then((data) => {
@@ -159,7 +158,7 @@ const enableCognitoUser = (userId, userPoolId) => {
   });
 };
 
-const enableCognitoUserWithoutDB = (userId, userPoolId) => {
+export const enableCognitoUserWithoutDB = (userId, userPoolId) => {
   return new Promise((res, rej) => {
     serviceProvider.adminEnableUser(
       {
@@ -179,7 +178,7 @@ const enableCognitoUserWithoutDB = (userId, userPoolId) => {
   });
 };
 
-const createCognitoUser = (
+export const createCognitoUser = (
   Username,
   UserAttributes,
   userPoolId,
@@ -196,33 +195,30 @@ const createCognitoUser = (
   if (tempPassword) authenticationData["TemporaryPassword"] = tempPassword;
 
   console.log("authenticationData", JSON.stringify(authenticationData));
-  let serviceProvider = new AWS.CognitoIdentityServiceProvider();
   return serviceProvider.adminCreateUser(authenticationData).promise();
 };
 
-const deleteCognitoUser = (Username, userPoolId) => {
+export const deleteCognitoUser = (Username, userPoolId) => {
   let authenticationData = {
     UserPoolId: userPoolId,
     Username,
   };
 
   console.log("authenticationData", JSON.stringify(authenticationData));
-  let serviceProvider = new AWS.CognitoIdentityServiceProvider();
   return serviceProvider.adminDeleteUser(authenticationData).promise();
 };
 
-const addUserToGroup = (Username, group, userPoolId) => {
+export const addUserToGroup = (Username, group, userPoolId) => {
   const params = {
     GroupName: group,
     UserPoolId: userPoolId,
     Username: Username,
   };
 
-  let serviceProvider = new AWS.CognitoIdentityServiceProvider();
   return serviceProvider.adminAddUserToGroup(params).promise();
 };
 
-const setTempPasswordForCognitoUser = (
+export const setTempPasswordForCognitoUser = (
   Username,
   Password,
   Permanent,
@@ -235,7 +231,6 @@ const setTempPasswordForCognitoUser = (
     Username,
   };
 
-  let serviceProvider = new AWS.CognitoIdentityServiceProvider();
   return new Promise((res, rej) => {
     serviceProvider.adminSetUserPassword(authenticationData, (err, data) => {
       if (err) {
@@ -248,7 +243,7 @@ const setTempPasswordForCognitoUser = (
   });
 };
 
-const listAllUser = (USER_POOL_ID, filter) => {
+export const listAllUser = (USER_POOL_ID, filter) => {
   const payload = {
     UserPoolId: USER_POOL_ID,
   };
@@ -258,7 +253,7 @@ const listAllUser = (USER_POOL_ID, filter) => {
   return serviceProvider.listUsers(payload).promise();
 };
 
-const listAllUsers = async (USER_POOL_ID) => {
+export const listAllUsers = async (USER_POOL_ID) => {
   let allUsers = [];
   let paginationToken = null;
 
@@ -270,30 +265,9 @@ const listAllUsers = async (USER_POOL_ID) => {
 
     const result = await serviceProvider.listUsers(params).promise();
 
-    // Append the users from the current result to the array
     allUsers = allUsers.concat(result.Users);
-
-    // Update the pagination token for the next iteration
     paginationToken = result.PaginationToken;
   } while (paginationToken);
 
   return allUsers;
-};
-
-module.exports = {
-  resendConfirmationCode,
-  listAllUsers,
-  adminForgetUserDevice,
-  listAllUser,
-  addUserToGroup,
-  disableCognitoUser,
-  enableCognitoUser,
-  createCognitoUser,
-  deleteCognitoUser,
-  setTempPasswordForCognitoUser,
-  adminConfirmSignUp,
-  adminUpdateUserAttributes,
-  adminGetUser,
-  isUserExistInCognito,
-  enableCognitoUserWithoutDB,
 };

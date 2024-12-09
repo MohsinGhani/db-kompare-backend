@@ -59,7 +59,13 @@ provider:
             - ${self:custom.databasesTableArn} # Permission for databases table
             - ${self:custom.metricesTableArn} # Permission for metrices table
             - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
-
+            - ${self:custom.usersTableArn} # Permission for users table
+          # Cognito Permissions for AdminAddUserToGroup
+        - Effect: Allow
+          Action:
+            - cognito-idp:*
+          Resource:
+            - arn:aws:cognito-idp:eu-west-1:253490764757:userpool/eu-west-1_NGNKtdSEL
 functions:
   postConfirmation:
     handler: functions/auth/postConfirmation.handler
@@ -79,6 +85,14 @@ functions:
     events:
       - http:
           path: /get-databases
+          method: get
+          private: true
+          cors: true
+  getUserById:
+    handler: functions/users/getUserById.handler
+    events:
+      - http:
+          path: /get-user
           method: get
           private: true
           cors: true
@@ -196,6 +210,10 @@ resources:
           - AttributeDataType: String
             Mutable: true
             Name: status
+            Required: false
+          - AttributeDataType: String
+            Mutable: true
+            Name: userId
             Required: false
         LambdaConfig:
           PostConfirmation: arn:aws:lambda:eu-west-1:253490764757:function:api-functions-${self:provider.stage}-postConfirmation
