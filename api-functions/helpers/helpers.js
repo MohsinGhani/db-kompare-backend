@@ -20,6 +20,9 @@ export const sendResponse = (statusCode, message, data) => {
     },
   };
 };
+export const getTimestamp = () => {
+  return new Date().getTime();
+};
 
 export const convertToUnixTimestamp = (date) =>
   Math.floor(new Date(date).getTime() / 1000);

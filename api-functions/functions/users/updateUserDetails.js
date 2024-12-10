@@ -9,39 +9,42 @@ export const handler = async (event, context, callback) => {
   );
 
   const { COGNITO_USER_POOL_ID } = process.env;
-
+  console.log("id", id, COGNITO_USER_POOL_ID);
   try {
     const { Item: user } = await getItem(TABLE_NAME.USERS, {
       id: id,
     });
+    console.log("user", user);
 
     if (!user) {
-      return sendResponse(404, "User does not exist", null);
+      return context.fail("User doesn't exist!");
     }
 
-    let updateExpression =
-      "SET name = :name, aboutMe = :aboutMe, city = :city, country = :country, updatedAt = :updatedAt, ";
+    let updateExpression = "SET #name = :name, updatedAt = :updatedAt";
     let expressionAttributeValues = {
       ":name": name,
       ":updatedAt": getTimestamp(),
     };
+    let expressionAttributeNames = {
+      "#name": "name", // Alias for the reserved keyword "name"
+    };
 
     if (aboutMe) {
-      updateExpression += "aboutMe = :aboutMe, ";
+      updateExpression += ", aboutMe = :aboutMe";
       expressionAttributeValues = {
         ...expressionAttributeValues,
         ":aboutMe": aboutMe,
       };
     }
     if (city) {
-      updateExpression += "city = :city, ";
+      updateExpression += ", city = :city";
       expressionAttributeValues = {
         ...expressionAttributeValues,
         ":city": city,
       };
     }
     if (country) {
-      updateExpression += "country = :country, ";
+      updateExpression += ", country = :country";
       expressionAttributeValues = {
         ...expressionAttributeValues,
         ":country": country,
@@ -49,7 +52,7 @@ export const handler = async (event, context, callback) => {
     }
 
     if (skills) {
-      updateExpression += "skills = :skills, ";
+      updateExpression += ", skills = :skills";
       expressionAttributeValues = {
         ...expressionAttributeValues,
         ":skills": skills,
@@ -57,7 +60,7 @@ export const handler = async (event, context, callback) => {
     }
 
     if (gender) {
-      updateExpression += "gender = :gender, ";
+      updateExpression += ", gender = :gender";
       expressionAttributeValues = {
         ...expressionAttributeValues,
         ":gender": gender,
@@ -74,13 +77,14 @@ export const handler = async (event, context, callback) => {
 
     let { Attributes } = await updateItemInDynamoDB({
       table: TABLE_NAME.USERS,
-      Key: { id },
+      Key: { id: id },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionAttributeValues,
+      ExpressionAttributeNames: expressionAttributeNames, // Add ExpressionAttributeNames here
       ConditionExpression: "attribute_exists(id)",
     });
 
-    return sendResponse(200, "User updated", Attributes);
+    return sendResponse(200, "User Updated Successfully", Attributes);
   } catch (error) {
     return sendResponse(500, "Server Error", error);
   }

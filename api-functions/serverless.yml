@@ -96,6 +96,16 @@ functions:
           method: get
           private: true
           cors: true
+  updateUserDetails:
+    handler: functions/users/updateUserDetails.handler
+    events:
+      - http:
+          path: /update-user
+          method: post
+          private: true
+          cors: true
+    environment:
+      COGNITO_USER_POOL_ID: !Ref DbKompare
   getRankings:
     handler: functions/rankings/getRankings.handler
     events:
