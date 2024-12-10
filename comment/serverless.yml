@@ -1,0 +1,123 @@
+org: dbkompare
+app: db-kompare
+service: comment
+configValidationMode: error
+
+useDotenv: true
+
+custom:
+  lambdaInitialArn: arn:aws:lambda:${self:provider.region}:${aws:accountId}:function:${self:service}-${self:provider.stage}
+  commentsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMMENTS_TABLE}
+  serverless-offline:
+    httpPort: 4000
+
+plugins:
+  - serverless-dotenv-plugin
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: eu-west-1
+  stage: ${opt:stage, 'dev'}
+  profile: dbkompare
+  environment:
+    COMMENTS_TABLE: db-kompare-comments-${self:provider.stage}
+
+  apiGateway:
+    apiKeys:
+      - name: comment-key
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Scan
+            - dynamodb:Query
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - ${self:custom.commentsTableArn} # Permission for comments table
+            - ${self:custom.commentsTableArn}/index/* # Permission for comments table indexes
+            #   - ${self:custom.databasesTableArn}/index/byStatus
+            #   - ${self:custom.metricesTableArn}/index/byStatusAndDate
+            #   - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate
+
+functions:
+  createComment:
+    handler: functions/comments/createComment.handler
+    events:
+      - http:
+          path: /create-comment
+          method: post
+          private: true
+          cors: true
+  updateComment:
+    handler: functions/comments/updateComment.handler
+    events:
+      - http:
+          path: /update-comment
+          method: patch
+          private: true
+          cors: true
+  getCommentsByDatabaseIds:
+    handler: functions/comments/getCommentsByDatabaseIds.handler
+    events:
+      - http:
+          path: /get-comments
+          method: post
+          private: true
+          cors: true
+  deleteComment:
+    handler: functions/comments/deleteComment.handler
+    events:
+      - http:
+          path: /delete-comment
+          method: delete
+          private: true
+          cors: true
+  updateCommentStatus:
+    handler: functions/comments/updateCommentStatus.handler
+    events:
+      - http:
+          path: /update-comment-status
+          method: patch
+          private: true
+          cors: true
+
+resources:
+  Resources:
+    Comments:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-comments-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: databaseId
+            AttributeType: S
+          - AttributeName: repliedTo
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byRepliedTo
+            KeySchema:
+              - AttributeName: repliedTo
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byDatabaseId
+            KeySchema:
+              - AttributeName: databaseId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
