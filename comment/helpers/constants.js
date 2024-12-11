@@ -1,8 +1,9 @@
 export const TABLE_NAME = {
+  USERS: process.env.USERS_TABLE,
   COMMENTS: process.env.COMMENTS_TABLE,
 };
 
 export const STATUS = {
   ACTIVE: "ACTIVE",
-  INACTIVE: "INACTIVE",
+  DISABLED: "DISABLED",
 };

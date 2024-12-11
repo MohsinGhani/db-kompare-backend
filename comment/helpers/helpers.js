@@ -21,6 +21,14 @@ export const getTableName = (name) => {
   return `${name}`;
 };
 
+export const getItem = (table, Key) => {
+  const params = {
+    TableName: table,
+    Key,
+  };
+  return DynamoDBClient.get(params).promise();
+};
+
 export const getBatchItems = async (table, Keys) => {
   const promises = Keys.map(async (databaseId) => {
     const params = {

@@ -8,6 +8,7 @@ useDotenv: true
 custom:
   lambdaInitialArn: arn:aws:lambda:${self:provider.region}:${aws:accountId}:function:${self:service}-${self:provider.stage}
   commentsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMMENTS_TABLE}
+  usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
   serverless-offline:
     httpPort: 4000
 
@@ -23,6 +24,7 @@ provider:
   profile: dbkompare
   environment:
     COMMENTS_TABLE: db-kompare-comments-${self:provider.stage}
+    USERS_TABLE: db-kompare-users-${self:provider.stage}
 
   apiGateway:
     apiKeys:
@@ -43,6 +45,7 @@ provider:
             - dynamodb:BatchWriteItem
           Resource:
             - ${self:custom.commentsTableArn} # Permission for comments table
+            - ${self:custom.usersTableArn} # Permission for users table
             - ${self:custom.commentsTableArn}/index/* # Permission for comments table indexes
             #   - ${self:custom.databasesTableArn}/index/byStatus
             #   - ${self:custom.metricesTableArn}/index/byStatusAndDate
