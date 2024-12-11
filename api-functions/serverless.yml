@@ -11,6 +11,17 @@ custom:
   metricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.METRICES_TABLE}
   databaseRankingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.RANKING_TABLE}
   usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
+  COGNITO_CALLBACK_URLS:
+    dev:
+      urls:
+        - http://localhost:3000/auth
+        - https://db-comparison.vercel.app
+        - https://db-comparison.vercel.app/auth
+  COGNITO_LOGOUT_URLS:
+    dev:
+      urls:
+        - http://localhost:3000
+        - https://db-comparison.vercel.app
   serverless-offline:
     httpPort: 4000
 
@@ -34,6 +45,8 @@ provider:
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
     GOOGLE_CSE_ID: ${env:GOOGLE_CSE_ID}
     BING_API_KEY: ${env:BING_API_KEY}
+    CLIENT_ID: ${env:CLIENT_ID}
+    CLIENT_SECRET: ${env:CLIENT_SECRET}
 
   apiGateway:
     apiKeys:
@@ -236,7 +249,48 @@ resources:
         ExplicitAuthFlows:
           - ALLOW_USER_SRP_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_CUSTOM_AUTH
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 1
+        AuthSessionValidity: 15
+        TokenValidityUnits:
+          AccessToken: days
+          IdToken: days
+          RefreshToken: days
+        AllowedOAuthFlows:
+          - implicit
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthScopes:
+          - profile
+          - email
+          - openid
+        CallbackURLs: ${self:custom.COGNITO_CALLBACK_URLS.${self:provider.stage}.urls}
+        LogoutURLs: ${self:custom.COGNITO_LOGOUT_URLS.${self:provider.stage}.urls}
+        SupportedIdentityProviders:
+          - COGNITO
+          - Google
 
+    GoogleIdentityProvider:
+      Type: AWS::Cognito::UserPoolIdentityProvider
+      Properties:
+        ProviderName: Google
+        ProviderType: Google
+        UserPoolId: !Ref DbKompare
+        AttributeMapping:
+          email: email
+          name: name
+          picture: picture
+        ProviderDetails:
+          client_id: ${env:CLIENT_ID}
+          client_secret: ${env:CLIENT_SECRET}
+          authorize_scopes: "profile email openid"
+
+    DBKompareUserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: dbkompare-auth-${self:provider.stage}
+        UserPoolId: !Ref DbKompare
     IdentityPool:
       Type: AWS::Cognito::IdentityPool
       Properties:
