@@ -4,27 +4,42 @@ import { TABLE_NAME } from "../../helpers/constants.js";
 export const handler = async (event, context, callback) => {
   let params = JSON.parse(event.body);
 
-  if (!params.id || !params.comment) {
+  if (!params.id || (!params.comment && params.rating === undefined)) {
     return sendResponse(
       400,
-      "Bad Request: Missing comment ID or comment",
+      "Bad Request: Missing comment ID, comment, or rating",
       false
     );
   }
 
+  const updateExpressions = [];
+  const expressionAttributeNames = {};
+  const expressionAttributeValues = {};
+
+  if (params.comment) {
+    updateExpressions.push("#comment = :comment");
+    expressionAttributeNames["#comment"] = "comment";
+    expressionAttributeValues[":comment"] = params.comment;
+  }
+
+  if (params.rating !== undefined) {
+    updateExpressions.push("#rating = :rating");
+    expressionAttributeNames["#rating"] = "rating";
+    expressionAttributeValues[":rating"] = params.rating;
+  }
+
+  updateExpressions.push("#updatedAt = :updatedAt");
+  expressionAttributeNames["#updatedAt"] = "updatedAt";
+  expressionAttributeValues[":updatedAt"] = new Date().toISOString();
+
   const updateParams = {
     table: TABLE_NAME.COMMENTS,
     Key: { id: params.id },
-    UpdateExpression: "SET #comment = :comment, #updatedAt = :updatedAt",
-    ExpressionAttributeNames: {
-      "#comment": "comment",
-      "#updatedAt": "updatedAt",
-    },
-    ExpressionAttributeValues: {
-      ":comment": params.comment,
-      ":updatedAt": new Date().toISOString(),
-    },
-    ConditionExpression: "attribute_exists(#comment)",
+    UpdateExpression: `SET ${updateExpressions.join(", ")}`,
+    ExpressionAttributeNames: expressionAttributeNames,
+    ExpressionAttributeValues: expressionAttributeValues,
+    ConditionExpression: "attribute_exists(id)",
+    // ConditionExpression: "attribute_exists(#comment)",
   };
 
   try {

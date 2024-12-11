@@ -92,6 +92,14 @@ functions:
           method: patch
           private: true
           cors: true
+  dbRating:
+    handler: functions/db-rating/dbRating.handler
+    events:
+      - http:
+          path: /db-rating
+          method: post
+          private: true
+          cors: true
 
 resources:
   Resources:

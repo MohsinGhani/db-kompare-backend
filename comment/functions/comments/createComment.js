@@ -11,6 +11,7 @@ export const handler = async (event, context, callback) => {
   params.id = uuidv4();
   params.createdAt = new Date().toISOString();
   params.updatedAt = new Date().toISOString();
+  params.rating = params.rating ? params.rating : 3;
   params.status = STATUS.ACTIVE;
 
   // If it's a reply, fetch the parent comment to inherit the databaseId
