@@ -36,6 +36,42 @@ function getGitHubUser(token) {
   });
 }
 
+function getGitHubUserByUsername(token, username) {
+  return new Promise((resolve, reject) => {
+    const requestOptions = {
+      hostname: "api.github.com",
+      path: `/user/${username}`,
+      method: "GET",
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: "application/json",
+        "User-Agent": "nodejs-lambda",
+      },
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return reject(
+            new Error(`GitHub /user returned ${res.statusCode}: ${data}`)
+          );
+        }
+        try {
+          const userData = JSON.parse(data);
+          resolve(userData);
+        } catch (err) {
+          reject(new Error("Failed to parse /user response from GitHub"));
+        }
+      });
+    });
+
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 function getGitHubUserEmails(token) {
   return new Promise((resolve, reject) => {
     const requestOptions = {
@@ -90,6 +126,10 @@ export const handler = async (event, context, callback) => {
       if (primaryEmailObj && primaryEmailObj.email) {
         userData.email = primaryEmailObj.email;
       }
+    }
+
+    if (!userData.name) {
+      userData.name = userData.login || `GitHubUser_${userData.id}`;
     }
 
     // 3) Assign sub = user ID
