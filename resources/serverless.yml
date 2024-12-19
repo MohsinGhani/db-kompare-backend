@@ -26,6 +26,8 @@ resources:
             AttributeType: S # String type for status
           - AttributeName: role
             AttributeType: S # String type for role
+          - AttributeName: email
+            AttributeType: S # String type for role
         GlobalSecondaryIndexes:
           - IndexName: byStatusandRole
             KeySchema:
@@ -35,11 +37,39 @@ resources:
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL # Include all attributes in the index
+          - IndexName: byEmail
+            KeySchema:
+              - AttributeName: email # Partition key for the GSI
+                KeyType: HASH
+              - AttributeName: status # Sort key for the GSI
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL # Include all attributes in the index
         BillingMode: PAY_PER_REQUEST
     Databases:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-databases-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+    Blogs:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: blogs-${self:provider.stage}
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S

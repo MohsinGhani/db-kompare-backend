@@ -4,9 +4,8 @@ import { getItem, updateItemInDynamoDB } from "../../helpers/dynamodb.js";
 import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event, context, callback) => {
-  const { id, name, gender, aboutMe, city, country, skills } = JSON.parse(
-    event.body
-  );
+  const { id, name, gender, aboutMe, city, country, skills, email } =
+    JSON.parse(event.body);
 
   const { COGNITO_USER_POOL_ID } = process.env;
   console.log("id", id, COGNITO_USER_POOL_ID);
@@ -20,14 +19,24 @@ export const handler = async (event, context, callback) => {
       return context.fail("User doesn't exist!");
     }
 
-    let updateExpression = "SET #name = :name, updatedAt = :updatedAt";
+    let updateExpression = "SET updatedAt = :updatedAt";
     let expressionAttributeValues = {
-      ":name": name,
       ":updatedAt": getTimestamp(),
     };
-    let expressionAttributeNames = {
-      "#name": "name", // Alias for the reserved keyword "name"
-    };
+
+    let expressionAttributeNames = name
+      ? {
+          "#name": "name", // Alias for the reserved keyword "name"
+        }
+      : null;
+
+    if (name) {
+      updateExpression += ", #name = :name";
+      expressionAttributeValues = {
+        ...expressionAttributeValues,
+        ":name": name,
+      };
+    }
 
     if (aboutMe) {
       updateExpression += ", aboutMe = :aboutMe";
@@ -43,6 +52,15 @@ export const handler = async (event, context, callback) => {
         ":city": city,
       };
     }
+
+    if (email) {
+      updateExpression += ", email = :email";
+      expressionAttributeValues = {
+        ...expressionAttributeValues,
+        ":email": email,
+      };
+    }
+
     if (country) {
       updateExpression += ", country = :country";
       expressionAttributeValues = {

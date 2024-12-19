@@ -29,6 +29,7 @@ export const handler = async (event, context, callback) => {
   let role = userAttributes["custom:role"] || USER_ROLE.VENDOR; // Default to 'VENDOR' role if not set
   const { email, name, sub } = userAttributes; // Extract email, name, and user sub (Cognito ID)
   const loggedAt = new Date().toISOString(); // Get the timestamp of when the user confirmed
+  let provider = "COGNITO";
 
   // Prepare attributes for updating the user's custom fields in Cognito
   const attributesToUpdate = [
@@ -40,6 +41,7 @@ export const handler = async (event, context, callback) => {
   if (social_identity && social_identity.providerName === "Google") {
     console.log("Google user detected, setting role to VENDOR.");
     role = USER_ROLE.VENDOR;
+    provider = "GOOGLE";
     attributesToUpdate.push({ Name: "email_verified", Value: "true" }); // Mark email as verified for Google users
   }
 
@@ -50,6 +52,7 @@ export const handler = async (event, context, callback) => {
     const payload = {
       id: userId,
       cognitoId: sub, // Cognito user ID
+      provider,
       email,
       name,
       role,

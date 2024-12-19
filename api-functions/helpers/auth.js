@@ -28,7 +28,6 @@ export const adminConfirmSignUp = (Username, userPoodId) => {
 };
 
 export const adminGetUser = (Username, userPoodId) => {
-  console.log("Username", Username);
   return serviceProvider
     .adminGetUser({
       UserPoolId: userPoodId,
