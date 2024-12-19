@@ -12,6 +12,17 @@ custom:
   databaseRankingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.RANKING_TABLE}
   usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
   commentsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMMENTS_TABLE}
+  COGNITO_CALLBACK_URLS:
+    dev:
+      urls:
+        - http://localhost:3000/auth
+        - https://db-kompare-frontend.vercel.app
+        - https://db-kompare-frontend.vercel.app/auth
+  COGNITO_LOGOUT_URLS:
+    dev:
+      urls:
+        - http://localhost:3000
+        - https://db-kompare-frontend.vercel.app
   serverless-offline:
     httpPort: 4000
 
@@ -36,6 +47,10 @@ provider:
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
     GOOGLE_CSE_ID: ${env:GOOGLE_CSE_ID}
     BING_API_KEY: ${env:BING_API_KEY}
+    CLIENT_ID: ${env:CLIENT_ID}
+    CLIENT_SECRET: ${env:CLIENT_SECRET}
+    GITHUB_CLIENT_ID: ${env:GITHUB_CLIENT_ID}
+    GITHUB_CLIENT_SECRET: ${env:GITHUB_CLIENT_SECRET}
 
   apiGateway:
     apiKeys:
@@ -56,17 +71,38 @@ provider:
             - dynamodb:BatchWriteItem
           Resource:
             - ${self:custom.databasesTableArn}/index/byStatus
+            - ${self:custom.usersTableArn}/index/byEmail
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
             - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate
             - ${self:custom.databasesTableArn} # Permission for databases table
             - ${self:custom.metricesTableArn} # Permission for metrices table
             - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
-
+            - ${self:custom.usersTableArn} # Permission for users table
+          # Cognito Permissions for AdminAddUserToGroup
+        - Effect: Allow
+          Action:
+            - cognito-idp:*
+          Resource:
+            - arn:aws:cognito-idp:eu-west-1:253490764757:userpool/eu-west-1_NGNKtdSEL
 functions:
   postConfirmation:
     handler: functions/auth/postConfirmation.handler
     environment:
       COGNITO_USER_POOL_ID: !Ref DbKompare
+
+  githubAccessToken:
+    handler: functions/auth/githubAccessTokenHandler.handler
+    events:
+      - http:
+          path: /oauth/github/access-token
+          method: post
+
+  githubUserInfo:
+    handler: functions/auth/githubUserInfoHandler.handler
+    events:
+      - http:
+          path: /oauth/github/user-info
+          method: get
 
   createDatabase:
     handler: functions/databases/createDatabase.handler
@@ -84,6 +120,33 @@ functions:
           method: get
           private: true
           cors: true
+  getUserById:
+    handler: functions/users/getUserById.handler
+    events:
+      - http:
+          path: /get-user
+          method: get
+          private: true
+          cors: true
+  isUserExistInDB:
+    handler: functions/auth/isUserExistInDB.handler
+    events:
+      - http:
+          path: /is-user-exist
+          method: get
+          private: true
+          cors: true
+
+  updateUserDetails:
+    handler: functions/users/updateUserDetails.handler
+    events:
+      - http:
+          path: /update-user
+          method: post
+          private: true
+          cors: true
+    environment:
+      COGNITO_USER_POOL_ID: !Ref DbKompare
   getRankings:
     handler: functions/rankings/getRankings.handler
     events:
@@ -164,14 +227,6 @@ functions:
     events:
       - schedule:
           rate: cron(50 5 * * ? *) # Runs daily at 5:45 PM UTC
-  createComment:
-    handler: functions/comments/createComment.handler
-    events:
-      - http:
-          path: /create-comment
-          method: post
-          private: true
-          cors: true
 
 resources:
   Resources:
@@ -207,10 +262,16 @@ resources:
             Mutable: true
             Name: status
             Required: false
+          - AttributeDataType: String
+            Mutable: true
+            Name: userId
+            Required: false
         LambdaConfig:
           PostConfirmation: arn:aws:lambda:eu-west-1:253490764757:function:api-functions-${self:provider.stage}-postConfirmation
     UserPoolClient:
       Type: AWS::Cognito::UserPoolClient
+      # DependsOn:
+      #   - GitHubIdentityProvider
       Properties:
         ClientName: Db-Kompare-Web-${self:provider.stage}
         GenerateSecret: false
@@ -218,7 +279,68 @@ resources:
         ExplicitAuthFlows:
           - ALLOW_USER_SRP_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_CUSTOM_AUTH
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 1
+        AuthSessionValidity: 15
+        TokenValidityUnits:
+          AccessToken: days
+          IdToken: days
+          RefreshToken: days
+        AllowedOAuthFlows:
+          - implicit
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthScopes:
+          - profile
+          - email
+          - openid
+        CallbackURLs: ${self:custom.COGNITO_CALLBACK_URLS.${self:provider.stage}.urls}
+        LogoutURLs: ${self:custom.COGNITO_LOGOUT_URLS.${self:provider.stage}.urls}
+        SupportedIdentityProviders:
+          - COGNITO
+          - Google
+          - GitHub
 
+    GoogleIdentityProvider:
+      Type: AWS::Cognito::UserPoolIdentityProvider
+      Properties:
+        ProviderName: Google
+        ProviderType: Google
+        UserPoolId: !Ref DbKompare
+        AttributeMapping:
+          email: email
+          name: name
+          picture: picture
+        ProviderDetails:
+          client_id: ${env:CLIENT_ID}
+          client_secret: ${env:CLIENT_SECRET}
+          authorize_scopes: "profile email openid"
+    GitHubIdentityProvider:
+      Type: AWS::Cognito::UserPoolIdentityProvider
+      Properties:
+        ProviderName: GitHub
+        ProviderType: OIDC
+        UserPoolId: !Ref DbKompare
+        AttributeMapping:
+          email: email
+          name: name
+        ProviderDetails:
+          client_id: ${env:GITHUB_CLIENT_ID}
+          client_secret: ${env:GITHUB_CLIENT_SECRET}
+          authorize_scopes: "user openid"
+          oidc_issuer: https://github.com
+          authorize_url: https://github.com/login/oauth/authorize
+          token_url: https://b8iy915ig0.execute-api.eu-west-1.amazonaws.com/dev/oauth/github/access-token
+          attributes_url: https://b8iy915ig0.execute-api.eu-west-1.amazonaws.com/dev/oauth/github/user-info
+          jwks_uri: https://b8iy915ig0.execute-api.eu-west-1.amazonaws.com/dev/oauth/github/access-token
+          attributes_request_method: GET
+
+    DBKompareUserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: dbkompare-auth-${self:provider.stage}
+        UserPoolId: !Ref DbKompare
     IdentityPool:
       Type: AWS::Cognito::IdentityPool
       Properties:
