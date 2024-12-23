@@ -4,6 +4,7 @@ export const TABLE_NAME = {
   DATABASE_RANKINGS: process.env.RANKING_TABLE,
   USERS: process.env.USERS_TABLE,
   COMMENTS: process.env.COMMENTS_TABLE,
+  BLOGS: process.env.BLOGS_TABLE,
 };
 
 export const STATUS_CODE = {

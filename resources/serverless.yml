@@ -75,6 +75,8 @@ resources:
             AttributeType: S
           - AttributeName: status
             AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: N
         KeySchema:
           - AttributeName: id
             KeyType: HASH
@@ -84,6 +86,8 @@ resources:
             KeySchema:
               - AttributeName: status
                 KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
             Projection:
               ProjectionType: ALL
     Metrices:
