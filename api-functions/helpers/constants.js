@@ -3,6 +3,7 @@ export const TABLE_NAME = {
   METRICES: process.env.METRICES_TABLE,
   DATABASE_RANKINGS: process.env.RANKING_TABLE,
   USERS: process.env.USERS_TABLE,
+  BLOGS: process.env.BLOGS_TABLE,
 };
 
 export const STATUS_CODE = {

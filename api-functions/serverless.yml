@@ -11,6 +11,7 @@ custom:
   metricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.METRICES_TABLE}
   databaseRankingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.RANKING_TABLE}
   usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
+  blogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.BLOGS_TABLE}
   COGNITO_CALLBACK_URLS:
     dev:
       urls:
@@ -37,6 +38,7 @@ provider:
   profile: dbkompare
   environment:
     DATABASES_TABLE: db-kompare-databases-${self:provider.stage}
+    BLOGS_TABLE: blogs-${self:provider.stage}
     METRICES_TABLE: db-kompare-metrices-${self:provider.stage}
     RANKING_TABLE: db-kompare-database-rankings-${self:provider.stage}
     USERS_TABLE: db-kompare-users-${self:provider.stage}
@@ -49,6 +51,8 @@ provider:
     CLIENT_SECRET: ${env:CLIENT_SECRET}
     GITHUB_CLIENT_ID: ${env:GITHUB_CLIENT_ID}
     GITHUB_CLIENT_SECRET: ${env:GITHUB_CLIENT_SECRET}
+    # LINKEDIN_CLIENT_ID: ${env:LINKEDIN_CLIENT_ID}
+    # LINKEDIN_CLIENT_SECRET: ${env:LINKEDIN_CLIENT_SECRET}
 
   apiGateway:
     apiKeys:
@@ -69,11 +73,13 @@ provider:
             - dynamodb:BatchWriteItem
           Resource:
             - ${self:custom.databasesTableArn}/index/byStatus
+            - ${self:custom.blogsTableArn}/index/byStatus
             - ${self:custom.usersTableArn}/index/byEmail
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
             - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate
             - ${self:custom.databasesTableArn} # Permission for databases table
             - ${self:custom.metricesTableArn} # Permission for metrices table
+            - ${self:custom.blogsTableArn} # Permission for blogs table
             - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
             - ${self:custom.usersTableArn} # Permission for users table
           # Cognito Permissions for AdminAddUserToGroup
@@ -151,6 +157,41 @@ functions:
       - http:
           path: /get-rankings
           method: post
+          private: true
+          cors: true
+  getBlogs:
+    handler: functions/blogs/getBlogs.handler
+    events:
+      - http:
+          path: /get-blogs
+          method: get
+          private: true
+          cors: true
+
+  createBlog:
+    handler: functions/blogs/createBlog.handler
+    events:
+      - http:
+          path: /create-blog
+          method: post
+          private: true
+          cors: true
+
+  editBlog:
+    handler: functions/blogs/editBlog.handler
+    events:
+      - http:
+          path: /edit-blog
+          method: put
+          private: true
+          cors: true
+
+  getBlog:
+    handler: functions/blogs/getBlogById.handler
+    events:
+      - http:
+          path: /get-blog/{id}
+          method: get
           private: true
           cors: true
 
@@ -299,6 +340,7 @@ resources:
           - COGNITO
           - Google
           - GitHub
+          # - LinkedIn
 
     GoogleIdentityProvider:
       Type: AWS::Cognito::UserPoolIdentityProvider
@@ -333,6 +375,25 @@ resources:
           attributes_url: https://b8iy915ig0.execute-api.eu-west-1.amazonaws.com/dev/oauth/github/user-info
           jwks_uri: https://b8iy915ig0.execute-api.eu-west-1.amazonaws.com/dev/oauth/github/access-token
           attributes_request_method: GET
+    # LinkedInIdentityProvider:
+    #   Type: AWS::Cognito::UserPoolIdentityProvider
+    #   Properties:
+    #     ProviderName: LinkedIn
+    #     ProviderType: OIDC
+    #     UserPoolId: !Ref DbKompare
+    #     AttributeMapping:
+    #       email: email
+    #       name: name
+    #     ProviderDetails:
+    #       client_id: ${env:LINKEDIN_CLIENT_ID}
+    #       client_secret: ${env:LINKEDIN_CLIENT_SECRET}
+    #       authorize_scopes: "profile email openid"
+    #       oidc_issuer: https://www.linkedin.com
+    #       authorize_url: https://www.linkedin.com/oauth/v2/authorization
+    #       token_url: https://www.linkedin.com/oauth/v2/accessToken
+    #       attributes_url: https://api.linkedin.com/v2/userinfo
+    #       jwks_uri: https://www.linkedin.com/oauth/openid/jwks
+    #       attributes_request_method: GET
 
     DBKompareUserPoolDomain:
       Type: AWS::Cognito::UserPoolDomain
