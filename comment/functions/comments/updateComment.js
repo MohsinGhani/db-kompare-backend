@@ -23,11 +23,19 @@ export const handler = async (event, context, callback) => {
   const updateExpressions = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};
+  let removeExpressions = [];
 
-  if (params.comment) {
-    updateExpressions.push("#comment = :comment");
-    expressionAttributeNames["#comment"] = "comment";
-    expressionAttributeValues[":comment"] = params.comment;
+  if (params.comment !== undefined) {
+    if (params.comment === "") {
+      // If comment is an empty string, add to REMOVE expressions
+      removeExpressions.push("#comment");
+      expressionAttributeNames["#comment"] = "comment";
+    } else {
+      // Otherwise, update the comment
+      updateExpressions.push("#comment = :comment");
+      expressionAttributeNames["#comment"] = "comment";
+      expressionAttributeValues[":comment"] = params.comment;
+    }
   }
 
   if (params.rating !== undefined) {
@@ -40,14 +48,24 @@ export const handler = async (event, context, callback) => {
   expressionAttributeNames["#updatedAt"] = "updatedAt";
   expressionAttributeValues[":updatedAt"] = new Date().toISOString();
 
+  let updateExpression = "";
+  if (updateExpressions.length > 0) {
+    updateExpression += `SET ${updateExpressions.join(", ")}`;
+  }
+  if (removeExpressions.length > 0) {
+    if (updateExpression) {
+      updateExpression += " ";
+    }
+    updateExpression += `REMOVE ${removeExpressions.join(", ")}`;
+  }
+
   const updateParams = {
     table: TABLE_NAME.COMMENTS,
     Key: { id: params.id },
-    UpdateExpression: `SET ${updateExpressions.join(", ")}`,
+    UpdateExpression: updateExpression,
     ExpressionAttributeNames: expressionAttributeNames,
     ExpressionAttributeValues: expressionAttributeValues,
     ConditionExpression: "attribute_exists(id)",
-    // ConditionExpression: "attribute_exists(#comment)",
   };
 
   try {
