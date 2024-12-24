@@ -52,7 +52,7 @@ export const handler = async (event, context, callback) => {
       email,
       userAttributes,
       COGNITO_USER_POOL_ID,
-      null,
+      "SUPPRESS", // Do not send invitation email
       null
     );
 

@@ -21,7 +21,7 @@ export const handler = async (event, context, callback) => {
     const comments = await getBatchItems(TABLE_NAME.COMMENTS, ids);
 
     if (!comments || comments.length === 0) {
-      return sendResponse(404, "No comments found for the provided IDs", null);
+      return sendResponse(200, "No comments found for the provided IDs", null);
     }
 
     // Organize comments into parent-reply structure
