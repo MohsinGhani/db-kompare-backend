@@ -12,6 +12,7 @@ custom:
   databaseRankingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.RANKING_TABLE}
   usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
   blogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.BLOGS_TABLE}
+  savedBlogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SAVED_BLOGS_TABLE}
   COGNITO_CALLBACK_URLS:
     dev:
       urls:
@@ -38,7 +39,8 @@ provider:
   profile: dbkompare
   environment:
     DATABASES_TABLE: db-kompare-databases-${self:provider.stage}
-    BLOGS_TABLE: blogs-${self:provider.stage}
+    BLOGS_TABLE: db-kompare-blogs-${self:provider.stage}
+    SAVED_BLOGS_TABLE: db-kompare-saved-blogs-${self:provider.stage}
     METRICES_TABLE: db-kompare-metrices-${self:provider.stage}
     RANKING_TABLE: db-kompare-database-rankings-${self:provider.stage}
     USERS_TABLE: db-kompare-users-${self:provider.stage}
@@ -82,6 +84,7 @@ provider:
             - ${self:custom.blogsTableArn} # Permission for blogs table
             - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
             - ${self:custom.usersTableArn} # Permission for users table
+            - ${self:custom.savedBlogsTableArn} # Permission for saved Blogs table
           # Cognito Permissions for AdminAddUserToGroup
         - Effect: Allow
           Action:
@@ -183,7 +186,14 @@ functions:
           method: get
           private: true
           cors: true
-
+  getSavedBlogs:
+    handler: functions/blogs/getSavedBlogs.handler
+    events:
+      - http:
+          path: /get-saved-blogs
+          method: get
+          private: true
+          cors: true
   createBlog:
     handler: functions/blogs/createBlog.handler
     events:
@@ -192,7 +202,14 @@ functions:
           method: post
           private: true
           cors: true
-
+  savedBlog:
+    handler: functions/blogs/savedBlog.handler
+    events:
+      - http:
+          path: /save-blog
+          method: post
+          private: true
+          cors: true
   editBlog:
     handler: functions/blogs/editBlog.handler
     events:

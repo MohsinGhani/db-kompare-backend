@@ -5,10 +5,11 @@ import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
-    const { createdBy, title, description, databases, status } = JSON.parse(
+    const { createdBy, title, description, databases, status, id } = JSON.parse(
       event.body || "{}"
     );
     if (
+      !id ||
       !createdBy ||
       !title ||
       !description ||
@@ -19,7 +20,7 @@ export const handler = async (event) => {
     }
 
     const blogItem = {
-      id: uuidv4(),
+      id,
       createdBy,
       createdAt: getTimestamp(),
       title,

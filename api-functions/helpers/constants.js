@@ -5,6 +5,7 @@ export const TABLE_NAME = {
   USERS: process.env.USERS_TABLE,
   COMMENTS: process.env.COMMENTS_TABLE,
   BLOGS: process.env.BLOGS_TABLE,
+  SAVED_BLOGS: process.env.SAVED_BLOGS_TABLE,
 };
 
 export const STATUS_CODE = {

@@ -1,4 +1,7 @@
-import { fetchAllItemByDynamodbIndex } from "../../helpers/dynamodb.js";
+import {
+  fetchAllItemByDynamodbIndex,
+  getItem,
+} from "../../helpers/dynamodb.js";
 import { TABLE_NAME } from "../../helpers/constants.js";
 import { sendResponse } from "../../helpers/helpers.js";
 
@@ -37,9 +40,36 @@ export const handler = async (event) => {
       ExpressionAttributeNames,
     });
 
-    return sendResponse(200, "Blogs retrieved successfully", blogs);
+    const blogsData = await Promise.all(
+      blogs.map(async (blog) => {
+        const user = await getUserById(blog.createdBy);
+        return { ...blog, createdBy: user };
+      })
+    );
+
+    return sendResponse(200, "Blogs retrieved successfully", blogsData);
   } catch (error) {
     console.error("Error fetching blogs:", error);
     return sendResponse(500, "Internal Server Error", error.message);
+  }
+};
+
+// Get database name
+const getUserById = async (userId) => {
+  const key = {
+    id: userId,
+  };
+  try {
+    const result = await getItem(TABLE_NAME.USERS, key);
+    if (result.Item) {
+      return result.Item;
+    }
+
+    console.log("🚀 ~ result.Item:", result.Item);
+
+    return "ANONYMOUS"; // Fallback if the database name is not found
+  } catch (error) {
+    console.error(`Error fetching database name for ID ${userId}:`, error);
+    throw error;
   }
 };

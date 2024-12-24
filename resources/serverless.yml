@@ -12,6 +12,44 @@ provider:
 
 resources:
   Resources:
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: db-kompare-${self:provider.stage}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+        VersioningConfiguration:
+          Status: Enabled
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+                - HEAD
+                - PUT
+                - POST
+                - DELETE
+              AllowedOrigins:
+                - "*"
+              MaxAge: 3600
+
+    S3BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref S3Bucket
+        PolicyDocument:
+          Id: BucketPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: S3Policy
+              Action: s3:*
+              Effect: Allow
+              Principal: "*"
+              Resource: !Sub arn:aws:s3:::${S3Bucket}/*
     UsersTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -69,7 +107,7 @@ resources:
     Blogs:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: blogs-${self:provider.stage}
+        TableName: db-kompare-blogs-${self:provider.stage}
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
@@ -90,6 +128,21 @@ resources:
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
+    SavedBlogs:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-saved-blogs-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: blogId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: blogId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
     Metrices:
       Type: AWS::DynamoDB::Table
       Properties:
