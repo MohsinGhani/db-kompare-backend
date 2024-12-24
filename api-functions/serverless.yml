@@ -153,6 +153,17 @@ functions:
           cors: true
     environment:
       COGNITO_USER_POOL_ID: !Ref DbKompare
+
+  createAdminUser:
+    handler: functions/users/createAdminUser.handler
+    events:
+      - http:
+          path: /create-admin-user
+          method: post
+          private: true
+          cors: true
+    environment:
+      COGNITO_USER_POOL_ID: !Ref DbKompare
   getRankings:
     handler: functions/rankings/getRankings.handler
     events:
