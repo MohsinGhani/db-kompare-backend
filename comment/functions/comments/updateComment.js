@@ -12,6 +12,14 @@ export const handler = async (event, context, callback) => {
     );
   }
 
+  if (params.comment && params.comment.length > 1000) {
+    return sendResponse(
+      400,
+      "Comment exceeds maximum length of 1000 characters",
+      null
+    );
+  }
+
   const updateExpressions = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};

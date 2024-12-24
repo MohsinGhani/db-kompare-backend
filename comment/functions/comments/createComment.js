@@ -13,6 +13,18 @@ export const handler = async (event, context, callback) => {
   params.updatedAt = new Date().toISOString();
   params.rating = params.rating ? params.rating : 3;
   params.status = STATUS.ACTIVE;
+  params.createdBy = params.createdBy
+    ? params.createdBy
+    : "eb33761f-3670-4b8b-bbc7-1a84479d94c0";
+
+  // Validate comment length
+  if (params.comment && params.comment.length > 1000) {
+    return sendResponse(
+      400,
+      "Comment exceeds maximum length of 1000 characters",
+      null
+    );
+  }
 
   // If it's a reply, fetch the parent comment to inherit the databaseId
   if (params.repliedTo) {
