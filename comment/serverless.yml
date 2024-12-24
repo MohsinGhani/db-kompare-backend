@@ -100,35 +100,34 @@ functions:
           method: post
           private: true
           cors: true
-
-resources:
-  Resources:
-    Comments:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: db-kompare-comments-${self:provider.stage}
-        DeletionProtectionEnabled: true
-        AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
-          - AttributeName: databaseId
-            AttributeType: S
-          - AttributeName: repliedTo
-            AttributeType: S
-        KeySchema:
-          - AttributeName: id
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
-        GlobalSecondaryIndexes:
-          - IndexName: byRepliedTo
-            KeySchema:
-              - AttributeName: repliedTo
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
-          - IndexName: byDatabaseId
-            KeySchema:
-              - AttributeName: databaseId
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
+# resources:
+#   Resources:
+#     Comments:
+#       Type: AWS::DynamoDB::Table
+#       Properties:
+#         TableName: db-kompare-comments-${self:provider.stage}
+#         DeletionProtectionEnabled: false
+#         AttributeDefinitions:
+#           - AttributeName: id
+#             AttributeType: S
+#           - AttributeName: databaseId
+#             AttributeType: S
+#           - AttributeName: repliedTo
+#             AttributeType: S
+#         KeySchema:
+#           - AttributeName: id
+#             KeyType: HASH
+#         BillingMode: PAY_PER_REQUEST
+#         GlobalSecondaryIndexes:
+#           - IndexName: byRepliedTo
+#             KeySchema:
+#               - AttributeName: repliedTo
+#                 KeyType: HASH
+#             Projection:
+#               ProjectionType: ALL
+#           - IndexName: byDatabaseId
+#             KeySchema:
+#               - AttributeName: databaseId
+#                 KeyType: HASH
+#             Projection:
+#               ProjectionType: ALL

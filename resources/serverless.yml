@@ -146,21 +146,28 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-comments-${self:provider.stage}
+        # DeletionProtectionEnabled: false
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
-          - AttributeName: status
+          - AttributeName: databaseId
             AttributeType: S
-          - AttributeName: createdAt
+          - AttributeName: repliedTo
             AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
         GlobalSecondaryIndexes:
-          - IndexName: byStatus
+          - IndexName: byRepliedTo
             KeySchema:
-              - AttributeName: status
+              - AttributeName: repliedTo
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byDatabaseId
+            KeySchema:
+              - AttributeName: databaseId
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
