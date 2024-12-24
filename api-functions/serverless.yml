@@ -11,7 +11,6 @@ custom:
   metricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.METRICES_TABLE}
   databaseRankingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.RANKING_TABLE}
   usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
-  commentsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMMENTS_TABLE}
   blogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.BLOGS_TABLE}
   COGNITO_CALLBACK_URLS:
     dev:
@@ -43,7 +42,6 @@ provider:
     METRICES_TABLE: db-kompare-metrices-${self:provider.stage}
     RANKING_TABLE: db-kompare-database-rankings-${self:provider.stage}
     USERS_TABLE: db-kompare-users-${self:provider.stage}
-    COMMENTS_TABLE: db-kompare-comments-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
