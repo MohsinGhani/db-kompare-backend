@@ -54,7 +54,7 @@ export const handler = async (event) => {
   }
 };
 
-// Get database name
+// Get user
 const getUserById = async (userId) => {
   const key = {
     id: userId,

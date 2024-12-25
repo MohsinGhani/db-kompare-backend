@@ -1,6 +1,6 @@
 import { createItemInDynamoDB } from "../../helpers/dynamodb.js";
 import { TABLE_NAME } from "../../helpers/constants.js";
-import { sendResponse } from "../../helpers/helpers.js";
+import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
@@ -11,7 +11,7 @@ export const handler = async (event) => {
       return sendResponse(400, "userId and blogId are required.");
     }
 
-    const savedAt = new Date().toISOString();
+    const savedAt = getTimestamp();
 
     // Define the item to be saved
     const itemAttributes = {

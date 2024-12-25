@@ -227,7 +227,14 @@ functions:
           method: get
           private: true
           cors: true
-
+  deleteBlog:
+    handler: functions/blogs/deleteBlog.handler
+    events:
+      - http:
+          path: delete-blog
+          method: delete
+          cors: true
+          private: true
   getDatabasesByIds:
     handler: functions/databases/getDatabaseByIds.handler
     events:
