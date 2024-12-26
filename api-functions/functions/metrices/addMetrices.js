@@ -1,87 +1,76 @@
-import { adminUpdateUserAttributes } from "../../helpers/auth.js";
-import { TABLE_NAME } from "../../helpers/constants.js";
-import { getItem, updateItemInDynamoDB } from "../../helpers/dynamodb.js";
-import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
+import AWS from "aws-sdk";
+import axios from "axios";
+import XLSX from "xlsx";
 
-export const handler = async (event, context, callback) => {
-  const { id, name, gender, aboutMe, city, country, skills } = JSON.parse(
-    event.body
-  );
+const dynamodb = new AWS.DynamoDB.DocumentClient();
 
-  const { COGNITO_USER_POOL_ID } = process.env;
+const TABLE_NAME = "DatabaseRankings"; // Replace with your table name
 
+export const handler = async (event) => {
   try {
-    const { Item: user } = await getItem(TABLE_NAME.USERS, {
-      id: id,
-    });
+    // Get the Excel file link from the event
+    const { excelFileUrl } = JSON.parse(event.body);
 
-    if (!user) {
-      return sendResponse(404, "User does not exist", null);
+    if (!excelFileUrl) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ message: "Excel file URL is required" }),
+      };
     }
 
-    let updateExpression =
-      "SET name = :name, aboutMe = :aboutMe, city = :city, country = :country, updatedAt = :updatedAt, ";
-    let expressionAttributeValues = {
-      ":name": name,
-      ":updatedAt": getTimestamp(),
+    // Download the Excel file
+    const response = await axios.get(excelFileUrl, {
+      responseType: "arraybuffer",
+    });
+    const workbook = XLSX.read(response.data, { type: "buffer" });
+
+    // Parse the first sheet of the workbook
+    const sheetName = workbook.SheetNames[0]; // Assuming data is in the first sheet
+    const sheet = workbook.Sheets[sheetName];
+
+    // Extract raw rows (including headers) using `header: 1`
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    // Separate headers and rows
+    const headers = rawData[0]; // First row contains headers
+    const rows = rawData.slice(1); // Remaining rows contain data
+
+    // Map rows to objects using headers
+    const mappedData = rows.map((row) => {
+      const record = {};
+      headers.forEach((header, index) => {
+        record[header] = row[index] || ""; // Map each header to its corresponding cell value
+      });
+      return record;
+    });
+
+    // // Insert data into DynamoDB
+    // const insertPromises = data.map((record) => {
+    //   const params = {
+    //     TableName: TABLE_NAME,
+    //     Item: record, // Ensure record keys match your table schema
+    //   };
+    //   return dynamodb.put(params).promise();
+    // });
+
+    // // Wait for all inserts to complete
+    // await Promise.all(insertPromises);
+    console.log("data", mappedData);
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: "Data inserted successfully!",
+        recordsProcessed: data.length,
+      }),
     };
-
-    if (aboutMe) {
-      updateExpression += "aboutMe = :aboutMe, ";
-      expressionAttributeValues = {
-        ...expressionAttributeValues,
-        ":aboutMe": aboutMe,
-      };
-    }
-    if (city) {
-      updateExpression += "city = :city, ";
-      expressionAttributeValues = {
-        ...expressionAttributeValues,
-        ":city": city,
-      };
-    }
-    if (country) {
-      updateExpression += "country = :country, ";
-      expressionAttributeValues = {
-        ...expressionAttributeValues,
-        ":country": country,
-      };
-    }
-
-    if (skills) {
-      updateExpression += "skills = :skills, ";
-      expressionAttributeValues = {
-        ...expressionAttributeValues,
-        ":skills": skills,
-      };
-    }
-
-    if (gender) {
-      updateExpression += "gender = :gender, ";
-      expressionAttributeValues = {
-        ...expressionAttributeValues,
-        ":gender": gender,
-      };
-    }
-
-    if (user && name) {
-      await adminUpdateUserAttributes(
-        user.cognitoId,
-        [{ Name: "name", Value: name }],
-        COGNITO_USER_POOL_ID
-      );
-    }
-
-    let { Attributes } = await updateItemInDynamoDB({
-      table: TABLE_NAME.USERS,
-      Key: { id },
-      UpdateExpression: updateExpression,
-      ExpressionAttributeValues: expressionAttributeValues,
-      ConditionExpression: "attribute_exists(id)",
-    });
-
-    return sendResponse(200, "User updated", Attributes);
   } catch (error) {
-    return sendResponse(500, "Server Error", error);
+    console.error("Error processing Excel file:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: "Failed to process data",
+        error: error.message,
+      }),
+    };
   }
 };

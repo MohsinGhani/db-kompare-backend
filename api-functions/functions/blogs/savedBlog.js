@@ -1,4 +1,4 @@
-import { createItemInDynamoDB } from "../../helpers/dynamodb.js";
+import { createItemInDynamoDB, getItem } from "../../helpers/dynamodb.js";
 import { TABLE_NAME } from "../../helpers/constants.js";
 import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 
@@ -9,6 +9,13 @@ export const handler = async (event) => {
     // Validate input
     if (!userId || !blogId) {
       return sendResponse(400, "userId and blogId are required.");
+    }
+
+    // Check if the blog exists
+    const existingItem = await getItem(TABLE_NAME.BLOGS, { id: blogId });
+
+    if (!existingItem || !existingItem.Item) {
+      return sendResponse(404, "Blog does not exist.");
     }
 
     const savedAt = getTimestamp();

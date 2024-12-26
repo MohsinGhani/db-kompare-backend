@@ -1,4 +1,4 @@
-import { deleteItem, getItem } from "../../helpers/dynamodb.js";
+import { deleteItem, getItem, getItemByIndex } from "../../helpers/dynamodb.js";
 import { TABLE_NAME } from "../../helpers/constants.js";
 import { sendResponse } from "../../helpers/helpers.js";
 
@@ -48,10 +48,39 @@ export const handler = async (event) => {
       return sendResponse(404, "Item does not exist.");
     }
 
-    // Delete the item
+    let deletedCount = 0;
+
+    // If deleting a blog, also delete its associated saved blogs
+    if (type.toUpperCase() === "BLOG") {
+      // Query and delete associated saved blogs using the helper
+      const savedBlogs = await getItemByIndex(
+        TABLE_NAME.SAVED_BLOGS,
+        "BlogIdIndex", // Use the GSI
+        "blogId = :blogId",
+        null, // No attribute names required
+        { ":blogId": id } // Expression attribute values
+      );
+
+      if (savedBlogs && savedBlogs.Items && savedBlogs.Items.length > 0) {
+        deletedCount = savedBlogs.Items.length; // Count how many entries will be deleted
+        const deletePromises = savedBlogs.Items.map((savedBlog) => {
+          const savedBlogKey = {
+            userId: savedBlog.userId,
+            blogId: savedBlog.blogId,
+          };
+          return deleteItem(TABLE_NAME.SAVED_BLOGS, savedBlogKey);
+        });
+        await Promise.all(deletePromises);
+      }
+    }
+
+    // Delete the main item
     await deleteItem(tableName, key);
 
-    return sendResponse(200, "Item deleted successfully.");
+    return sendResponse(
+      200,
+      `Item deleted successfully. ${deletedCount} saved entries were also removed.`
+    );
   } catch (error) {
     console.error("Error deleting item:", error);
     return sendResponse(500, "Internal Server Error", { error: error.message });

@@ -79,6 +79,7 @@ provider:
             - ${self:custom.usersTableArn}/index/byEmail
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
             - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate
+            - ${self:custom.savedBlogsTableArn}/index/BlogIdIndex
             - ${self:custom.databasesTableArn} # Permission for databases table
             - ${self:custom.metricesTableArn} # Permission for metrices table
             - ${self:custom.blogsTableArn} # Permission for blogs table

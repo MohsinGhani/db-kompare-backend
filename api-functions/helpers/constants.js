@@ -28,6 +28,11 @@ export const USER_STATUS = {
   INACTIVE: "INACTIVE",
 };
 
+export const BLOG_TYPE = {
+  BLOG: "BLOG",
+  SAVED_BLOG: "SAVED_BLOG",
+};
+
 export const RESOURCE_TYPE = {
   GITHUB: "GITHUB",
   STACKOVERFLOW: "STACKOVERFLOW",

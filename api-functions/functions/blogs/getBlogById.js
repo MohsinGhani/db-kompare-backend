@@ -5,6 +5,8 @@ import { sendResponse } from "../../helpers/helpers.js";
 export const handler = async (event) => {
   try {
     const { id } = event.pathParameters || {};
+    const { userId } = event.queryStringParameters || {};
+
     if (!id) {
       return sendResponse(400, "Missing blog ID", false);
     }
@@ -14,17 +16,32 @@ export const handler = async (event) => {
     if (!blogItem || !blogItem.Item) {
       return sendResponse(404, "Blog not found", false);
     }
-    if (blogItem.Item.createdBy) {
-      blogItem.Item.createdBy = await getUserById(blogItem.Item.createdBy);
+
+    const blogDetails = { ...blogItem.Item };
+
+    // Fetch user details for createdBy
+    if (blogDetails.createdBy) {
+      blogDetails.createdBy = await getUserById(blogDetails.createdBy);
     }
 
-    return sendResponse(200, "Blog retrieved successfully", blogItem.Item);
+    // Check if the blog is saved in the user's SavedBlogs
+    if (userId) {
+      const isSaved = await checkIfBlogIsSaved(userId, id);
+      blogDetails.isSaved = isSaved;
+    } else {
+      blogDetails.isSaved = false; // Default to false if userId is not provided
+    }
+
+    return sendResponse(200, "Blog retrieved successfully", blogDetails);
   } catch (error) {
-    return sendResponse(500, "Error retrieving blog:", error.message);
+    console.error("Error retrieving blog:", error);
+    return sendResponse(500, "Error retrieving blog:", {
+      error: error.message,
+    });
   }
 };
 
-// Get user
+// Get user details by ID
 const getUserById = async (userId) => {
   const key = {
     id: userId,
@@ -41,5 +58,24 @@ const getUserById = async (userId) => {
   } catch (error) {
     console.error(`Error fetching database name for ID ${userId}:`, error);
     throw error;
+  }
+};
+
+// Check if a blog is saved by the user
+const checkIfBlogIsSaved = async (userId, blogId) => {
+  try {
+    const key = {
+      userId,
+      blogId,
+    };
+    const savedBlogItem = await getItem(TABLE_NAME.SAVED_BLOGS, key);
+
+    return !!(savedBlogItem && savedBlogItem.Item); // Returns true if the item exists
+  } catch (error) {
+    console.error(
+      `Error checking if blog ${blogId} is saved by user ${userId}:`,
+      error
+    );
+    return false; // Default to false on error
   }
 };
