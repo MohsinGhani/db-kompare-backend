@@ -35,32 +35,36 @@ export const handler = async (event) => {
     const headers = rawData[0]; // First row contains headers
     const rows = rawData.slice(1); // Remaining rows contain data
 
-    // Map rows to objects using headers
-    const mappedData = rows.map((row) => {
-      const record = {};
-      headers.forEach((header, index) => {
-        record[header] = row[index] || ""; // Map each header to its corresponding cell value
+    // Map rows to objects using headers and filter out empty rows
+    const mappedData = rows
+      .map((row) => {
+        const record = {};
+        headers.forEach((header, index) => {
+          record[header] = row[index] || ""; // Map each header to its corresponding cell value
+        });
+        return record;
+      })
+      .filter((record) => {
+        // Remove rows where all values are empty
+        return Object.values(record).some((value) => value !== "");
       });
-      return record;
-    });
 
-    // // Insert data into DynamoDB
-    // const insertPromises = data.map((record) => {
+    console.log("data", mappedData);
+
+    // Insert data into DynamoDB (if required, replace this block with actual insertion logic)
+    // for (const item of mappedData) {
     //   const params = {
     //     TableName: TABLE_NAME,
-    //     Item: record, // Ensure record keys match your table schema
+    //     Item: item,
     //   };
-    //   return dynamodb.put(params).promise();
-    // });
+    //   await dynamodb.put(params).promise();
+    // }
 
-    // // Wait for all inserts to complete
-    // await Promise.all(insertPromises);
-    console.log("data", mappedData);
     return {
       statusCode: 200,
       body: JSON.stringify({
         message: "Data inserted successfully!",
-        recordsProcessed: data.length,
+        recordsProcessed: mappedData.length,
       }),
     };
   } catch (error) {

@@ -9,7 +9,7 @@ export const handler = async (event, context, callback) => {
 
   // Add a unique ID to the item
   params.id = uuidv4();
-  params.status = DATABASE_STATUS.ACTIVE;
+  params.status = DATABASE_STATUS.INACTIVE;
 
   console.log("Filtered and validated params:", JSON.stringify(params));
 
