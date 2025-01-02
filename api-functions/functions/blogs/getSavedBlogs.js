@@ -23,14 +23,14 @@ export const handler = async (event) => {
       // Query parameters for fetching blogs created by the user
       queryParams = {
         table: TABLE_NAME.BLOGS,
-        IndexName: "byStatus", // Use GSI for efficient querying
-        KeyConditionExpression: "#status = :status",
+        IndexName: "byIsPublished", // Use GSI for efficient querying
+        KeyConditionExpression: "#isPublished = :isPublished",
         FilterExpression: "createdBy = :userId",
         ExpressionAttributeNames: {
-          "#status": "status", // Map reserved keyword to a placeholder
+          "#isPublished": "isPublished",
         },
         ExpressionAttributeValues: {
-          ":status": "PUBLIC", // Assuming you want only published blogs
+          ":isPublished": "YES",
           ":userId": userId,
         },
       };

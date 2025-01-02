@@ -115,6 +115,8 @@ resources:
             AttributeType: S
           - AttributeName: createdAt
             AttributeType: N
+          - AttributeName: isPublished
+            AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
@@ -123,6 +125,14 @@ resources:
           - IndexName: byStatus
             KeySchema:
               - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byIsPublished
+            KeySchema:
+              - AttributeName: isPublished
                 KeyType: HASH
               - AttributeName: createdAt
                 KeyType: RANGE

@@ -27,6 +27,7 @@ export const handler = async (event) => {
       description,
       databases,
       status,
+      isPublished: "YES",
     };
 
     await createItemInDynamoDB(

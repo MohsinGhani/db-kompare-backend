@@ -76,6 +76,7 @@ provider:
           Resource:
             - ${self:custom.databasesTableArn}/index/byStatus
             - ${self:custom.blogsTableArn}/index/byStatus
+            - ${self:custom.blogsTableArn}/index/byIsPublished
             - ${self:custom.usersTableArn}/index/byEmail
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
             - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate

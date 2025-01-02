@@ -15,6 +15,7 @@ export const STATUS_CODE = {
 };
 
 export const DATABASE_STATUS = {
+  ALL: "ALL",
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
 };

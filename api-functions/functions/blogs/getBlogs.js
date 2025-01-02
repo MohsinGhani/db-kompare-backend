@@ -7,33 +7,68 @@ import { sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
-    const { status, databases } = event.queryStringParameters || {};
+    const { status, databases, isPublished } =
+      event.queryStringParameters || {};
 
-    const KeyConditionExpression = status ? "#status = :status" : null;
+    // Validate input: Return error if both `status` and `isPublished` are passed
+    if (status && isPublished) {
+      return sendResponse(
+        400,
+        "You cannot pass both 'status' and 'isPublished' together."
+      );
+    }
+
+    let IndexName = null;
+    let KeyConditionExpression = null;
     const ExpressionAttributeValues = {};
     const ExpressionAttributeNames = {};
+    let FilterExpression = null;
 
+    // Handle `status`
     if (status) {
+      IndexName = "byStatus";
+      KeyConditionExpression = "#status = :status";
       ExpressionAttributeValues[":status"] = status;
       ExpressionAttributeNames["#status"] = "status";
     }
 
-    let FilterExpression = null;
+    // Handle `isPublished`
+    if (isPublished) {
+      IndexName = "byIsPublished";
+      KeyConditionExpression = "#isPublished = :isPublished";
+      ExpressionAttributeValues[":isPublished"] = isPublished;
+      ExpressionAttributeNames["#isPublished"] = "isPublished";
+    }
+
+    // Handle `databases` as a filter expression
     if (databases) {
       const dbArray = databases.split(",");
       const filterConditions = dbArray.map(
         (db, index) => `contains(#databases, :database${index})`
       );
-      FilterExpression = filterConditions.join(" OR ");
+      const dbFilter = filterConditions.join(" OR ");
       dbArray.forEach((db, index) => {
         ExpressionAttributeValues[`:database${index}`] = db.trim();
       });
       ExpressionAttributeNames["#databases"] = "databases";
+
+      // Combine with existing filter expression if present
+      FilterExpression = FilterExpression
+        ? `${FilterExpression} AND (${dbFilter})`
+        : dbFilter;
+    }
+
+    // Validate: At least one of `status` or `isPublished` must be provided
+    if (!status && !isPublished) {
+      return sendResponse(
+        400,
+        "Either 'status' or 'isPublished' must be provided"
+      );
     }
 
     const blogs = await fetchAllItemByDynamodbIndex({
       TableName: TABLE_NAME.BLOGS,
-      IndexName: "byStatus",
+      IndexName,
       KeyConditionExpression,
       ExpressionAttributeValues,
       FilterExpression,
@@ -67,9 +102,9 @@ const getUserById = async (userId) => {
 
     console.log("🚀 ~ result.Item:", result.Item);
 
-    return "ANONYMOUS"; // Fallback if the database name is not found
+    return "ANONYMOUS"; // Fallback if the user name is not found
   } catch (error) {
-    console.error(`Error fetching database name for ID ${userId}:`, error);
+    console.error(`Error fetching user for ID ${userId}:`, error);
     throw error;
   }
 };
