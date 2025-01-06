@@ -54,6 +54,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-users-${self:provider.stage}
+        DeletionProtectionEnabled: true
         KeySchema:
           - AttributeName: id
             KeyType: HASH # Primary partition key
@@ -88,6 +89,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-databases-${self:provider.stage}
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
@@ -108,6 +110,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-blogs-${self:provider.stage}
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
@@ -142,6 +145,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-saved-blogs-${self:provider.stage}
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: userId
             AttributeType: S
@@ -164,6 +168,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-metrices-${self:provider.stage}
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: database_id
             AttributeType: S
@@ -190,6 +195,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: db-kompare-database-rankings-${self:provider.stage}
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
@@ -241,3 +247,30 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+    TrackingResources:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        TableName: db-kompare-tracking-resources-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: "date"
+            AttributeType: "S"
+          - AttributeName: "resource_type"
+            AttributeType: "S"
+          - AttributeName: "table_name"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "date"
+            KeyType: "HASH"
+          - AttributeName: "resource_type"
+            KeyType: "RANGE"
+        GlobalSecondaryIndexes:
+          - IndexName: "DateTableNameIndex"
+            KeySchema:
+              - AttributeName: "date"
+                KeyType: "HASH"
+              - AttributeName: "table_name"
+                KeyType: "RANGE"
+            Projection:
+              ProjectionType: "ALL"
+        BillingMode: "PAY_PER_REQUEST"

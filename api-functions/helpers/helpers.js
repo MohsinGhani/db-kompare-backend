@@ -84,6 +84,8 @@ export const getYesterdayDate = moment()
   .subtract(1, "days")
   .format("YYYY-MM-DD");
 
+export const getTodayDate = moment().format("YYYY-MM-DD");
+
 export const getTwoDaysAgoDate = moment()
   .subtract(2, "days")
   .format("YYYY-MM-DD");

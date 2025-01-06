@@ -1,80 +1,287 @@
-import AWS from "aws-sdk";
-import axios from "axios";
-import XLSX from "xlsx";
+import Bottleneck from "bottleneck";
+import {
+  calculateGooglePopularity,
+  getYesterdayDate,
+  getTodayDate,
+  sendResponse,
+} from "../../helpers/helpers.js";
+import { TABLE_NAME, DATABASE_STATUS } from "../../helpers/constants.js";
+import {
+  getItemByQuery,
+  fetchAllItemByDynamodbIndex,
+  updateItemInDynamoDB,
+  putItemInDynamoDB,
+} from "../../helpers/dynamodb.js";
+import { fetchGoogleData } from "../../services/googleService.js";
 
-const dynamodb = new AWS.DynamoDB.DocumentClient();
-
-const TABLE_NAME = "DatabaseRankings"; // Replace with your table name
+// Global rate limiter
+const limiter = new Bottleneck({
+  maxConcurrent: 3, // Allow 3 concurrent requests
+  minTime: 100, // 100ms delay between requests (10 requests per second)
+});
 
 export const handler = async (event) => {
   try {
-    // Get the Excel file link from the event
-    const { excelFileUrl } = JSON.parse(event.body);
+    console.log("Fetching all databases (active and inactive)...");
 
-    if (!excelFileUrl) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ message: "Excel file URL is required" }),
-      };
+    // Getting all active and inactive databases
+    const databases = await fetchAllDatabases();
+
+    if (!databases || databases.length === 0) {
+      console.log("No databases found.");
+      return sendResponse(404, "No databases found.");
     }
 
-    // Download the Excel file
-    const response = await axios.get(excelFileUrl, {
-      responseType: "arraybuffer",
+    // Fetch tracking table data for the previous day
+    console.log("Fetching tracking data...");
+    const trackingData = await getItemByQuery({
+      table: TABLE_NAME.TRACKING_RESOURCES,
+      KeyConditionExpression: "#date = :date",
+      ExpressionAttributeNames: {
+        "#date": "date",
+      },
+      ExpressionAttributeValues: {
+        ":date": getYesterdayDate,
+      },
     });
-    const workbook = XLSX.read(response.data, { type: "buffer" });
 
-    // Parse the first sheet of the workbook
-    const sheetName = workbook.SheetNames[0]; // Assuming data is in the first sheet
-    const sheet = workbook.Sheets[sheetName];
+    const trackingItem = trackingData?.Items?.[0];
+    const mergedDatabases = trackingItem?.merged_databases || [];
 
-    // Extract raw rows (including headers) using `header: 1`
-    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    // Filter out merged database IDs
+    const unprocessedDatabases = databases.filter(
+      (db) => !mergedDatabases.includes(db.id)
+    );
 
-    // Separate headers and rows
-    const headers = rawData[0]; // First row contains headers
-    const rows = rawData.slice(1); // Remaining rows contain data
+    // Select 15 databases to process
+    const databasesToProcess = unprocessedDatabases.slice(0, 15);
 
-    // Map rows to objects using headers and filter out empty rows
-    const mappedData = rows
-      .map((row) => {
-        const record = {};
-        headers.forEach((header, index) => {
-          record[header] = row[index] || ""; // Map each header to its corresponding cell value
-        });
-        return record;
-      })
-      .filter((record) => {
-        // Remove rows where all values are empty
-        return Object.values(record).some((value) => value !== "");
+    // Initialize processed database IDs
+    const processedDatabaseIds = [];
+
+    // Process selected databases
+    for (const db of databasesToProcess) {
+      const { id: databaseId, queries: db_queries, name } = db;
+
+      // Generate queries if not provided
+      const queries = db_queries || generateQueries(name);
+
+      // Check if metrics exist for this database and date
+      const metricsData = await getItemByQuery({
+        table: TABLE_NAME.METRICES,
+        KeyConditionExpression: "#database_id = :database_id and #date = :date",
+        ExpressionAttributeNames: {
+          "#database_id": "database_id",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":database_id": databaseId,
+          ":date": getYesterdayDate,
+        },
       });
 
-    console.log("data", mappedData);
+      const metric = metricsData?.Items?.[0];
 
-    // Insert data into DynamoDB (if required, replace this block with actual insertion logic)
-    // for (const item of mappedData) {
-    //   const params = {
-    //     TableName: TABLE_NAME,
-    //     Item: item,
-    //   };
-    //   await dynamodb.put(params).promise();
-    // }
+      // Skip if Google data already exists
+      if (metric?.googleData) {
+        continue;
+      }
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: "Data inserted successfully!",
-        recordsProcessed: mappedData.length,
-      }),
-    };
+      // Prepare the googleData array
+      const googleData = [];
+
+      // Process first query with and without dateRestrict
+      googleData.push({
+        query: queries[0],
+        totalResultsWithoutDate: await limiter.schedule(() =>
+          fetchGoogleData(queries[0], false)
+        ),
+      });
+
+      googleData.push({
+        query: queries[0],
+        totalResultsWithDate: await limiter.schedule(() =>
+          fetchGoogleData(queries[0], true)
+        ),
+      });
+
+      // Process remaining queries with dateRestrict
+      const remainingResults = await Promise.all(
+        queries.slice(1).map((query) =>
+          limiter.schedule(() =>
+            fetchGoogleData(query, true).then((totalResults) => ({
+              query,
+              totalResults,
+            }))
+          )
+        )
+      );
+      googleData.push(...remainingResults);
+
+      const updatedPopularity = {
+        ...metric?.popularity,
+        googleScore: calculateGooglePopularity(googleData),
+      };
+
+      // Update DynamoDB with googleData
+      await updateItemInDynamoDB({
+        table: TABLE_NAME.METRICES,
+        Key: {
+          database_id: databaseId,
+          date: getYesterdayDate,
+        },
+        UpdateExpression:
+          "SET #popularity = :popularity, #googleData = :googleData",
+        ExpressionAttributeNames: {
+          "#popularity": "popularity",
+          "#googleData": "googleData",
+        },
+        ExpressionAttributeValues: {
+          ":popularity": updatedPopularity,
+          ":googleData": googleData,
+        },
+      });
+
+      processedDatabaseIds.push(databaseId);
+
+      console.log(`Successfully updated Google data for database: ${name}`);
+    }
+
+    // Process remaining databases
+    const databasesNotProcessed = unprocessedDatabases.slice(15);
+
+    await Promise.all(
+      databasesNotProcessed.map(async (db) => {
+        const { id: databaseId, name, queries: db_queries } = db;
+
+        // Generate queries for the database
+        const queries = db_queries || generateQueries(name);
+
+        // Prepare the googleData array with fixed value of 99 for each query
+        const googleData = queries.map((query) => ({
+          query,
+          totalResults: 99,
+        }));
+
+        // Update DynamoDB for the unprocessed database
+        await updateItemInDynamoDB({
+          table: TABLE_NAME.METRICES,
+          Key: {
+            database_id: databaseId,
+            date: getYesterdayDate,
+          },
+          UpdateExpression:
+            "SET #googleData = :googleData, #isPublished = :isPublished",
+          ExpressionAttributeNames: {
+            "#googleData": "googleData",
+            "#isPublished": "isPublished",
+          },
+          ExpressionAttributeValues: {
+            ":googleData": googleData,
+            ":isPublished": "NO",
+          },
+        });
+
+        console.log(`Updated unprocessed database ID: ${databaseId}`);
+      })
+    );
+
+    // Update tracking table
+    const newMergedDatabases = [...mergedDatabases, ...processedDatabaseIds];
+    await updateItemInDynamoDB({
+      table: TABLE_NAME.TRACKING_RESOURCES,
+      Key: {
+        date: getTodayDate,
+      },
+      UpdateExpression:
+        "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases",
+      ExpressionAttributeNames: {
+        "#processed_databases": "processed_databases",
+        "#merged_databases": "merged_databases",
+      },
+      ExpressionAttributeValues: {
+        ":processedDatabases": processedDatabaseIds,
+        ":mergedDatabases": newMergedDatabases,
+      },
+    });
+
+    // Update ranking table
+    await putItemInDynamoDB({
+      table: TABLE_NAME.RANKING,
+      Item: {
+        date: getTodayDate(),
+        processed_databases: processedDatabaseIds,
+      },
+    });
+
+    console.log("Tracking and ranking tables updated successfully.");
+
+    return sendResponse(200, "Google data updated successfully.");
   } catch (error) {
-    console.error("Error processing Excel file:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        message: "Failed to process data",
-        error: error.message,
-      }),
-    };
+    console.error("Error processing Google metrics:", error);
+    return sendResponse(500, "Failed to process Google metrics.", {
+      error: error.message,
+    });
   }
+};
+
+// Fetch all active and inactive databases
+const fetchAllDatabases = async () => {
+  const activeDatabases = await fetchAllItemByDynamodbIndex({
+    TableName: TABLE_NAME.DATABASES,
+    IndexName: "byStatus",
+    KeyConditionExpression: "#status = :active",
+    ExpressionAttributeValues: {
+      ":active": DATABASE_STATUS.ACTIVE,
+    },
+    ExpressionAttributeNames: {
+      "#status": "status",
+    },
+  });
+
+  const inactiveDatabases = await fetchAllItemByDynamodbIndex({
+    TableName: TABLE_NAME.DATABASES,
+    IndexName: "byStatus",
+    KeyConditionExpression: "#status = :inactive",
+    ExpressionAttributeValues: {
+      ":inactive": DATABASE_STATUS.INACTIVE,
+    },
+    ExpressionAttributeNames: {
+      "#status": "status",
+    },
+  });
+
+  // Combine and sort databases by status, prioritizing active databases
+  const combinedDatabases = [
+    ...(activeDatabases || []),
+    ...(inactiveDatabases || []),
+  ];
+
+  return combinedDatabases.sort((a, b) => {
+    if (
+      a.status === DATABASE_STATUS.ACTIVE &&
+      b.status === DATABASE_STATUS.INACTIVE
+    ) {
+      return -1; // Active comes before inactive
+    }
+    if (
+      a.status === DATABASE_STATUS.INACTIVE &&
+      b.status === DATABASE_STATUS.ACTIVE
+    ) {
+      return 1; // Inactive comes after active
+    }
+    return 0; // Preserve order if both are the same
+  });
+};
+
+const generateQueries = (name) => {
+  const queries = [
+    `${name}`,
+    `${name} issues`,
+    `${name} crash`,
+    `${name} slow`,
+    `${name} stuck`,
+  ];
+
+  return queries;
 };

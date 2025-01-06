@@ -13,6 +13,8 @@ custom:
   usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
   blogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.BLOGS_TABLE}
   savedBlogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SAVED_BLOGS_TABLE}
+  trackingResourcesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TRACKING_RESOURCES_TABLE}
+
   COGNITO_CALLBACK_URLS:
     dev:
       urls:
@@ -44,6 +46,7 @@ provider:
     METRICES_TABLE: db-kompare-metrices-${self:provider.stage}
     RANKING_TABLE: db-kompare-database-rankings-${self:provider.stage}
     USERS_TABLE: db-kompare-users-${self:provider.stage}
+    TRACKING_RESOURCES_TABLE: db-kompare-tracking-resources-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -81,12 +84,14 @@ provider:
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
             - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate
             - ${self:custom.savedBlogsTableArn}/index/BlogIdIndex
+            - ${self:custom.trackingResourcesTableArn}/index/DateTableNameIndex
             - ${self:custom.databasesTableArn} # Permission for databases table
             - ${self:custom.metricesTableArn} # Permission for metrices table
             - ${self:custom.blogsTableArn} # Permission for blogs table
             - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
             - ${self:custom.usersTableArn} # Permission for users table
             - ${self:custom.savedBlogsTableArn} # Permission for saved Blogs table
+            - ${self:custom.trackingResourcesTableArn} # Permission for tracking resorces table
           # Cognito Permissions for AdminAddUserToGroup
         - Effect: Allow
           Action:

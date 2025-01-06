@@ -158,6 +158,7 @@ const calculateScoreAndRankChanges = async (
           database_id: databaseId,
           name: databaseDetail.name,
           database_model: databaseDetail.primary_database_model,
+          secondary_database_model: databaseDetail.secondary_database_models,
           scoreChanges,
           rankChanges,
         };
