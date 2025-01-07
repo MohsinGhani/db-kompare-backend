@@ -4,13 +4,17 @@ import {
   getYesterdayDate,
   getTodayDate,
   sendResponse,
+  getTwoDaysAgoDate,
 } from "../../helpers/helpers.js";
-import { TABLE_NAME, DATABASE_STATUS } from "../../helpers/constants.js";
+import {
+  TABLE_NAME,
+  DATABASE_STATUS,
+  RESOURCE_TYPE,
+} from "../../helpers/constants.js";
 import {
   getItemByQuery,
   fetchAllItemByDynamodbIndex,
   updateItemInDynamoDB,
-  putItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
 import { fetchGoogleData } from "../../services/googleService.js";
 
@@ -34,23 +38,89 @@ export const handler = async (event) => {
 
     // Fetch tracking table data for the previous day
     console.log("Fetching tracking data...");
+
     const trackingData = await getItemByQuery({
       table: TABLE_NAME.TRACKING_RESOURCES,
-      KeyConditionExpression: "#date = :date",
+      KeyConditionExpression:
+        "#date = :date AND #resource_type = :resourceType", // Combine both primary keys
+      FilterExpression: "#table_name = :tableName", // Additional filter for table_name
       ExpressionAttributeNames: {
         "#date": "date",
+        "#resource_type": "resource_type",
+        "#table_name": "table_name", // Non-primary key attribute
       },
       ExpressionAttributeValues: {
-        ":date": getYesterdayDate,
+        ":date": getTodayDate, // Valid date string
+        ":resourceType": RESOURCE_TYPE.GOOGLE, // Valid resource type
+        ":tableName": TABLE_NAME.DATABASES, // Value for table_name filter
       },
     });
 
     const trackingItem = trackingData?.Items?.[0];
     const mergedDatabases = trackingItem?.merged_databases || [];
 
+    console.log("trackingItem", trackingItem);
     // Filter out merged database IDs
     const unprocessedDatabases = databases.filter(
       (db) => !mergedDatabases.includes(db.id)
+    );
+    console.log("unprocessed databases", unprocessedDatabases.length);
+    // Filter out already processed database IDs
+    const alreadyprocessedDatabases = databases.filter((db) =>
+      mergedDatabases.includes(db.id)
+    );
+    console.log(
+      "already processed Databases ",
+      alreadyprocessedDatabases.length
+    );
+    await Promise.all(
+      alreadyprocessedDatabases.map(async (db) => {
+        const { id: databaseId, name, queries: db_queries } = db;
+
+        // Generate queries for the database
+
+        const metricsData = await getItemByQuery({
+          table: TABLE_NAME.METRICES,
+          KeyConditionExpression:
+            "#database_id = :database_id and #date = :date",
+          ExpressionAttributeNames: {
+            "#database_id": "database_id",
+            "#date": "date",
+          },
+          ExpressionAttributeValues: {
+            ":database_id": databaseId,
+            ":date": getTwoDaysAgoDate,
+          },
+        });
+
+        const metric = metricsData?.Items?.[0];
+
+        // const updatedPopularity = {
+        //   ...metric?.popularity,
+        //   googleScore: calculateGooglePopularity(googleData),
+        // };
+
+        // Update DynamoDB with googleData
+        // await updateItemInDynamoDB({
+        //   table: TABLE_NAME.METRICES,
+        //   Key: {
+        //     database_id: databaseId,
+        //     date: getYesterdayDate,
+        //   },
+        //   UpdateExpression:
+        //     "SET #popularity = :popularity, #googleData = :googleData",
+        //   ExpressionAttributeNames: {
+        //     "#popularity": "popularity",
+        //     "#googleData": "googleData",
+        //   },
+        //   ExpressionAttributeValues: {
+        //     ":popularity": updatedPopularity,
+        //     ":googleData": metric?.googleData,
+        //   },
+        // });
+
+        console.log(`Already processed database : ${name}`);
+      })
     );
 
     // Select 15 databases to process
@@ -82,65 +152,60 @@ export const handler = async (event) => {
 
       const metric = metricsData?.Items?.[0];
 
-      // Skip if Google data already exists
-      if (metric?.googleData) {
-        continue;
-      }
-
       // Prepare the googleData array
       const googleData = [];
 
-      // Process first query with and without dateRestrict
-      googleData.push({
-        query: queries[0],
-        totalResultsWithoutDate: await limiter.schedule(() =>
-          fetchGoogleData(queries[0], false)
-        ),
-      });
+      // // Process first query with and without dateRestrict
+      // googleData.push({
+      //   query: queries[0],
+      //   totalResultsWithoutDate: await limiter.schedule(() =>
+      //     fetchGoogleData(queries[0], false)
+      //   ),
+      // });
 
-      googleData.push({
-        query: queries[0],
-        totalResultsWithDate: await limiter.schedule(() =>
-          fetchGoogleData(queries[0], true)
-        ),
-      });
+      // googleData.push({
+      //   query: queries[0],
+      //   totalResultsWithDate: await limiter.schedule(() =>
+      //     fetchGoogleData(queries[0], true)
+      //   ),
+      // });
 
-      // Process remaining queries with dateRestrict
-      const remainingResults = await Promise.all(
-        queries.slice(1).map((query) =>
-          limiter.schedule(() =>
-            fetchGoogleData(query, true).then((totalResults) => ({
-              query,
-              totalResults,
-            }))
-          )
-        )
-      );
-      googleData.push(...remainingResults);
+      // // Process remaining queries with dateRestrict
+      // const remainingResults = await Promise.all(
+      //   queries.slice(1).map((query) =>
+      //     limiter.schedule(() =>
+      //       fetchGoogleData(query, true).then((totalResults) => ({
+      //         query,
+      //         totalResults,
+      //       }))
+      //     )
+      //   )
+      // );
+      // googleData.push(...remainingResults);
 
-      const updatedPopularity = {
-        ...metric?.popularity,
-        googleScore: calculateGooglePopularity(googleData),
-      };
+      // const updatedPopularity = {
+      //   ...metric?.popularity,
+      //   googleScore: calculateGooglePopularity(googleData),
+      // };
 
       // Update DynamoDB with googleData
-      await updateItemInDynamoDB({
-        table: TABLE_NAME.METRICES,
-        Key: {
-          database_id: databaseId,
-          date: getYesterdayDate,
-        },
-        UpdateExpression:
-          "SET #popularity = :popularity, #googleData = :googleData",
-        ExpressionAttributeNames: {
-          "#popularity": "popularity",
-          "#googleData": "googleData",
-        },
-        ExpressionAttributeValues: {
-          ":popularity": updatedPopularity,
-          ":googleData": googleData,
-        },
-      });
+      // await updateItemInDynamoDB({
+      //   table: TABLE_NAME.METRICES,
+      //   Key: {
+      //     database_id: databaseId,
+      //     date: getYesterdayDate,
+      //   },
+      //   UpdateExpression:
+      //     "SET #popularity = :popularity, #googleData = :googleData",
+      //   ExpressionAttributeNames: {
+      //     "#popularity": "popularity",
+      //     "#googleData": "googleData",
+      //   },
+      //   ExpressionAttributeValues: {
+      //     ":popularity": updatedPopularity,
+      //     ":googleData": googleData,
+      //   },
+      // });
 
       processedDatabaseIds.push(databaseId);
 
@@ -164,25 +229,25 @@ export const handler = async (event) => {
         }));
 
         // Update DynamoDB for the unprocessed database
-        await updateItemInDynamoDB({
-          table: TABLE_NAME.METRICES,
-          Key: {
-            database_id: databaseId,
-            date: getYesterdayDate,
-          },
-          UpdateExpression:
-            "SET #googleData = :googleData, #isPublished = :isPublished",
-          ExpressionAttributeNames: {
-            "#googleData": "googleData",
-            "#isPublished": "isPublished",
-          },
-          ExpressionAttributeValues: {
-            ":googleData": googleData,
-            ":isPublished": "NO",
-          },
-        });
+        // await updateItemInDynamoDB({
+        //   table: TABLE_NAME.METRICES,
+        //   Key: {
+        //     database_id: databaseId,
+        //     date: getYesterdayDate,
+        //   },
+        //   UpdateExpression:
+        //     "SET #googleData = :googleData, #isPublished = :isPublished",
+        //   ExpressionAttributeNames: {
+        //     "#googleData": "googleData",
+        //     "#isPublished": "isPublished",
+        //   },
+        //   ExpressionAttributeValues: {
+        //     ":googleData": googleData,
+        //     ":isPublished": "NO",
+        //   },
+        // });
 
-        console.log(`Updated unprocessed database ID: ${databaseId}`);
+        console.log(`Updated unprocessed database : ${name}`);
       })
     );
 
@@ -191,26 +256,25 @@ export const handler = async (event) => {
     await updateItemInDynamoDB({
       table: TABLE_NAME.TRACKING_RESOURCES,
       Key: {
-        date: getTodayDate,
+        date: getTodayDate, // Partition key
+        resource_type: RESOURCE_TYPE.GOOGLE, // Sort key
       },
       UpdateExpression:
-        "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases",
+        "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #resouce_type = :resourceType, #table_name = :table_name, #status = :status",
       ExpressionAttributeNames: {
         "#processed_databases": "processed_databases",
         "#merged_databases": "merged_databases",
+        "#resouce_type": "resouce_type",
+        "#table_name": "table_name",
+        "#status": "status",
       },
       ExpressionAttributeValues: {
         ":processedDatabases": processedDatabaseIds,
         ":mergedDatabases": newMergedDatabases,
-      },
-    });
-
-    // Update ranking table
-    await putItemInDynamoDB({
-      table: TABLE_NAME.RANKING,
-      Item: {
-        date: getTodayDate(),
-        processed_databases: processedDatabaseIds,
+        ":resourceType": RESOURCE_TYPE.GOOGLE,
+        ":table_name": TABLE_NAME.DATABASES,
+        ":status":
+          unprocessedDatabases?.length === 0 ? "COMPLETED" : "INPROGRESS",
       },
     });
 
