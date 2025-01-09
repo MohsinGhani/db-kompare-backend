@@ -16,17 +16,7 @@ export const handler = async (event) => {
     console.log("Fetching all active databases...");
 
     // Fetch all active databases
-    const databases = await fetchAllItemByDynamodbIndex({
-      TableName: TABLE_NAME.DATABASES,
-      IndexName: "byStatus",
-      KeyConditionExpression: "#status = :statusVal",
-      ExpressionAttributeValues: {
-        ":statusVal": DATABASE_STATUS.ACTIVE, // Active databases
-      },
-      ExpressionAttributeNames: {
-        "#status": "status",
-      },
-    });
+    const databases = await fetchAllDatabases();
 
     if (!databases || databases.length === 0) {
       console.log("No active databases found.");
@@ -108,4 +98,31 @@ export const handler = async (event) => {
     console.error("Error updating rankings:", error);
     return sendResponse(500, "Failed to update rankings", error.message);
   }
+};
+
+// Fetch all active and inactive databases
+const fetchAllDatabases = async () => {
+  const [activeDatabases, inactiveDatabases] = await Promise.all([
+    fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE),
+    fetchDatabasesByStatus(DATABASE_STATUS.INACTIVE),
+  ]);
+
+  return [...(activeDatabases || []), ...(inactiveDatabases || [])].sort(
+    (a, b) =>
+      a.status === DATABASE_STATUS.ACTIVE &&
+      b.status === DATABASE_STATUS.INACTIVE
+        ? -1
+        : 1
+  );
+};
+
+// Fetch databases based on their status
+const fetchDatabasesByStatus = async (status) => {
+  return fetchAllItemByDynamodbIndex({
+    TableName: TABLE_NAME.DATABASES,
+    IndexName: "byStatus",
+    KeyConditionExpression: "#status = :statusVal",
+    ExpressionAttributeValues: { ":statusVal": status },
+    ExpressionAttributeNames: { "#status": "status" },
+  });
 };

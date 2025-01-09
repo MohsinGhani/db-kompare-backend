@@ -15,18 +15,8 @@ export const handler = async (event) => {
   try {
     console.log("Fetching all active databases for Bing data...");
 
-    // Fetch all active databases
-    const databases = await fetchAllItemByDynamodbIndex({
-      TableName: TABLE_NAME.DATABASES,
-      IndexName: "byStatus",
-      KeyConditionExpression: "#status = :statusVal",
-      ExpressionAttributeValues: {
-        ":statusVal": DATABASE_STATUS.ACTIVE, // Active databases
-      },
-      ExpressionAttributeNames: {
-        "#status": "status",
-      },
-    });
+    // Fetch all active and inactive databases
+    const databases = await fetchAllDatabases();
 
     if (!databases || databases.length === 0) {
       console.log("No active databases found for BING");
@@ -36,15 +26,7 @@ export const handler = async (event) => {
     // Use Promise.all to process databases concurrently
     const updateResults = await Promise.all(
       databases.map(async (db) => {
-        const { id: databaseId, queries, name } = db;
-
-        // Skip databases without queries
-        if (!queries || queries.length === 0) {
-          console.log(
-            `Skipped database_id: ${databaseId}, name: ${name} - No queries found.`
-          );
-          return { databaseId, success: false, reason: "No queries found" };
-        }
+        const { id: databaseId, name } = db;
 
         try {
           // Check if metrics exist for this database and date
@@ -124,4 +106,31 @@ export const handler = async (event) => {
       error: error.message,
     });
   }
+};
+
+// Fetch all active and inactive databases
+const fetchAllDatabases = async () => {
+  const [activeDatabases, inactiveDatabases] = await Promise.all([
+    fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE),
+    fetchDatabasesByStatus(DATABASE_STATUS.INACTIVE),
+  ]);
+
+  return [...(activeDatabases || []), ...(inactiveDatabases || [])].sort(
+    (a, b) =>
+      a.status === DATABASE_STATUS.ACTIVE &&
+      b.status === DATABASE_STATUS.INACTIVE
+        ? -1
+        : 1
+  );
+};
+
+// Fetch databases based on their status
+const fetchDatabasesByStatus = async (status) => {
+  return fetchAllItemByDynamodbIndex({
+    TableName: TABLE_NAME.DATABASES,
+    IndexName: "byStatus",
+    KeyConditionExpression: "#status = :statusVal",
+    ExpressionAttributeValues: { ":statusVal": status },
+    ExpressionAttributeNames: { "#status": "status" },
+  });
 };

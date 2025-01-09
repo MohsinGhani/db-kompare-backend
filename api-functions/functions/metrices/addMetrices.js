@@ -260,11 +260,10 @@ export const handler = async (event) => {
         resource_type: RESOURCE_TYPE.GOOGLE, // Sort key
       },
       UpdateExpression:
-        "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #resouce_type = :resourceType, #table_name = :table_name, #status = :status",
+        "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #table_name = :table_name, #status = :status",
       ExpressionAttributeNames: {
         "#processed_databases": "processed_databases",
         "#merged_databases": "merged_databases",
-        "#resouce_type": "resouce_type",
         "#table_name": "table_name",
         "#status": "status",
       },

@@ -78,6 +78,13 @@ export const generateDailyDateRanges = (year) => {
   return dateRanges;
 };
 
+export const generateQueries = (name) => [
+  `${name}`,
+  `${name} issues`,
+  `${name} crash`,
+  `${name} slow`,
+  `${name} stuck`,
+];
 export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const getYesterdayDate = moment()

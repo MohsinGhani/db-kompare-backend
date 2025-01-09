@@ -4,7 +4,11 @@ import {
   sendResponse,
   calculateStackOverflowPopularity,
 } from "../../helpers/helpers.js";
-import { TABLE_NAME, DATABASE_STATUS } from "../../helpers/constants.js";
+import {
+  TABLE_NAME,
+  DATABASE_STATUS,
+  RESOURCE_TYPE,
+} from "../../helpers/constants.js";
 import {
   getItemByQuery,
   fetchAllItemByDynamodbIndex,
@@ -28,11 +32,13 @@ export const handler = async (event) => {
     const trackingData = await fetchTrackingData();
 
     const trackingItem = trackingData?.Items?.[0];
-    const processedDatabases = trackingItem?.processed_databases || [];
+
+    // Get the list of databases that have already been processed
+    const mergedDatabases = trackingItem?.merged_databases || [];
 
     // Separate unprocessed and processed databases
     const { unprocessedDatabases, alreadyProcessedDatabases } =
-      categorizeDatabases(databases, processedDatabases);
+      categorizeDatabases(databases, mergedDatabases);
 
     console.log("Unprocessed databases:", unprocessedDatabases.length);
     console.log(
@@ -47,7 +53,7 @@ export const handler = async (event) => {
 
     // Update the tracking table
     await updateTrackingTable(
-      processedDatabases,
+      mergedDatabases,
       processedDatabaseIds,
       unprocessedDatabases
     );
@@ -70,10 +76,10 @@ export const handler = async (event) => {
 
 // Fetch all active and inactive databases
 const fetchAllDatabases = async () => {
-  const activeDatabases = await fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE);
-  const inactiveDatabases = await fetchDatabasesByStatus(
-    DATABASE_STATUS.INACTIVE
-  );
+  const [activeDatabases, inactiveDatabases] = await Promise.all([
+    fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE),
+    fetchDatabasesByStatus(DATABASE_STATUS.INACTIVE),
+  ]);
 
   return [...(activeDatabases || []), ...(inactiveDatabases || [])].sort(
     (a, b) =>
@@ -99,12 +105,17 @@ const fetchDatabasesByStatus = async (status) => {
 const fetchTrackingData = async () => {
   return getItemByQuery({
     table: TABLE_NAME.TRACKING_RESOURCES,
-    KeyConditionExpression: "#date = :date",
+    KeyConditionExpression: "#date = :date AND #resource_type = :resourceType",
+    FilterExpression: "#table_name = :tableName",
     ExpressionAttributeNames: {
       "#date": "date",
+      "#resource_type": "resource_type",
+      "#table_name": "table_name",
     },
     ExpressionAttributeValues: {
       ":date": getTodayDate,
+      ":resourceType": RESOURCE_TYPE.STACKOVERFLOW,
+      ":tableName": TABLE_NAME.DATABASES,
     },
   });
 };
@@ -125,14 +136,10 @@ const processUnprocessedDatabases = async (databases) => {
   const processedDatabaseIds = [];
 
   for (const db of databases) {
-    const { id: databaseId, stack_overflow_tag, name } = db;
+    const { id: databaseId, stack_overflow_tag: sflow_tag, name } = db;
 
-    if (!stack_overflow_tag) {
-      console.log(
-        `No stack_overflow_tag found for database_id: ${databaseId} name: ${name}`
-      );
-      continue; // Skip databases without stack overflow tags
-    }
+    // Use database name as tag if stack_overflow_tag is not provided
+    const stack_overflow_tag = sflow_tag || name;
 
     // Check if metrics exist for this database and date
     const metricsData = await getItemByQuery({
@@ -180,7 +187,9 @@ const processUnprocessedDatabases = async (databases) => {
         "attribute_exists(#popularity) OR attribute_not_exists(#popularity)",
     });
 
+    // Add databaseId to processedDatabaseIds
     processedDatabaseIds.push(databaseId);
+
     console.log(`Successfully updated stackOverflowData for name: ${name}`);
   }
 
@@ -189,28 +198,37 @@ const processUnprocessedDatabases = async (databases) => {
 
 // Update tracking table in DynamoDB
 const updateTrackingTable = async (
-  processedDatabases,
-  newProcessedIds,
+  mergedDatabases,
+  processedDatabaseIds,
   unprocessedDatabases
 ) => {
-  const updatedProcessedDatabases = [...processedDatabases, ...newProcessedIds];
+  // Merge newly processed databases with already processed databases
+  const newMergedDatabases = [...mergedDatabases, ...processedDatabaseIds];
+
+  // Determine the status of the tracking
   const status =
     unprocessedDatabases?.length === 0 ? "COMPLETED" : "INPROGRESS";
 
+  // Update the tracking table with the new state
   return updateItemInDynamoDB({
     table: TABLE_NAME.TRACKING_RESOURCES,
     Key: {
       date: getTodayDate,
+      resource_type: RESOURCE_TYPE.STACKOVERFLOW,
     },
     UpdateExpression:
-      "SET #processed_databases = :processedDatabases, #status = :status",
+      "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #table_name = :tableName, #status = :status",
     ExpressionAttributeNames: {
       "#processed_databases": "processed_databases",
+      "#merged_databases": "merged_databases",
+      "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
-      ":processedDatabases": updatedProcessedDatabases,
-      ":status": status,
+      ":processedDatabases": processedDatabaseIds, // Newly processed databases
+      ":mergedDatabases": newMergedDatabases, // Already processed databases
+      ":tableName": TABLE_NAME.DATABASES, // It shows that this tracking is for databases
+      ":status": status, // Status of the tracking
     },
   });
 };

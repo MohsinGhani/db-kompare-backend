@@ -1,122 +1,9 @@
-// import {
-//   getYesterdayDate,
-//   sendResponse,
-//   calculateStackOverflowPopularity,
-// } from "../../helpers/helpers.js";
-// import { TABLE_NAME, DATABASE_STATUS } from "../../helpers/constants.js";
-// import {
-//   getItemByQuery,
-//   fetchAllItemByDynamodbIndex,
-//   updateItemInDynamoDB,
-// } from "../../helpers/dynamodb.js";
-// import { getStackOverflowMetrics } from "../../services/stackOverflowService.js";
-
-// export const handler = async (event) => {
-//   try {
-//     console.log("Fetching all active databases for stackOverflowData...");
-
-//     // Fetch all active databases
-//     const databases = await fetchAllItemByDynamodbIndex({
-//       TableName: TABLE_NAME.DATABASES,
-//       IndexName: "byStatus",
-//       KeyConditionExpression: "#status = :statusVal",
-//       ExpressionAttributeValues: {
-//         ":statusVal": DATABASE_STATUS.ACTIVE, // Active databases
-//       },
-//       ExpressionAttributeNames: {
-//         "#status": "status",
-//       },
-//     });
-
-//     if (!databases || databases.length === 0) {
-//       console.log("No active databases found.");
-//       return sendResponse(404, "No active databases found", null);
-//     }
-
-//     // Process each database
-//     for (const db of databases) {
-//       const { id: databaseId, stack_overflow_tag, name } = db;
-
-//       if (!stack_overflow_tag) {
-//         console.log(
-//           `No stack_overflow_tag found for database_id: ${databaseId} name :${name}`
-//         );
-//         continue; // Skip databases without queries
-//       }
-
-//       // Check if metrics exist for this database and date
-//       const metricsData = await getItemByQuery({
-//         table: TABLE_NAME.METRICES,
-//         KeyConditionExpression: "#database_id = :database_id and #date = :date",
-//         ExpressionAttributeNames: {
-//           "#database_id": "database_id",
-//           "#date": "date",
-//         },
-//         ExpressionAttributeValues: {
-//           ":database_id": databaseId,
-//           ":date": getYesterdayDate,
-//         },
-//       });
-
-//       const metric = metricsData.Items[0];
-
-//       // Fetch stackoverflow metrics
-//       const stackOverflowData = await getStackOverflowMetrics(
-//         stack_overflow_tag
-//       );
-
-//       // Updating the popularity Object
-//       const updatedPopularity = {
-//         ...metric?.popularity,
-//         stackoverflowScore: calculateStackOverflowPopularity(stackOverflowData),
-//       };
-
-//       // Updating the database to add github data and github score in our database
-//       await updateItemInDynamoDB({
-//         table: TABLE_NAME.METRICES,
-//         Key: {
-//           database_id: databaseId,
-//           date: getYesterdayDate,
-//         },
-//         UpdateExpression:
-//           "SET #popularity = :popularity, #stackOverflowData = :stackOverflowData",
-//         ExpressionAttributeNames: {
-//           "#popularity": "popularity",
-//           "#stackOverflowData": "stackOverflowData",
-//         },
-//         ExpressionAttributeValues: {
-//           ":popularity": updatedPopularity,
-//           ":stackOverflowData": stackOverflowData,
-//         },
-//         ConditionExpression:
-//           "attribute_exists(#popularity) OR attribute_not_exists(#popularity)",
-//       });
-
-//       console.log(
-//         `Successfully updated stackOverflowData data for name :${name}`
-//       );
-//     }
-
-//     return sendResponse(
-//       200,
-//       "stackOverflowData metrics updated successfully",
-//       true
-//     );
-//   } catch (error) {
-//     console.error("Error updating stackOverflowData metrics:", error);
-//     return sendResponse(
-//       500,
-//       "Failed to update stackOverflowData metrics",
-//       error.message
-//     );
-//   }
-// };
-
 import {
   getYesterdayDate,
   getTodayDate,
   sendResponse,
-  calculateStackOverflowPopularity,
+  calculateGitHubPopularity,
+  generateQueries,
 } from "../../helpers/helpers.js";
 import {
   TABLE_NAME,
@@ -128,11 +15,11 @@ import {
   fetchAllItemByDynamodbIndex,
   updateItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
-import { getStackOverflowMetrics } from "../../services/stackOverflowService.js";
+import { getGitHubMetrics } from "../../services/githubService.js";
 
 export const handler = async (event) => {
   try {
-    console.log("Fetching all databases for stackOverflowData...");
+    console.log("Fetching all databases for GitHub data...");
 
     // Fetch all active and inactive databases
     const databases = await fetchAllDatabases();
@@ -173,18 +60,10 @@ export const handler = async (event) => {
     );
 
     console.log("Tracking table updated successfully.");
-    return sendResponse(
-      200,
-      "stackOverflowData metrics updated successfully",
-      true
-    );
+    return sendResponse(200, "GitHub metrics updated successfully", true);
   } catch (error) {
-    console.error("Error updating stackOverflowData metrics:", error);
-    return sendResponse(
-      500,
-      "Failed to update stackOverflowData metrics.",
-      error.message
-    );
+    console.error("Error updating GitHub metrics:", error);
+    return sendResponse(500, "Failed to update GitHub metrics.", error.message);
   }
 };
 
@@ -228,7 +107,7 @@ const fetchTrackingData = async () => {
     },
     ExpressionAttributeValues: {
       ":date": getTodayDate,
-      ":resourceType": RESOURCE_TYPE.STACKOVERFLOW,
+      ":resourceType": RESOURCE_TYPE.GITHUB,
       ":tableName": TABLE_NAME.DATABASES,
     },
   });
@@ -250,10 +129,9 @@ const processUnprocessedDatabases = async (databases) => {
   const processedDatabaseIds = [];
 
   for (const db of databases) {
-    const { id: databaseId, stack_overflow_tag: sflow_tag, name } = db;
+    const { id: databaseId, queries: db_queries, name } = db;
 
-    // Use database name as tag if stack_overflow_tag is not provided
-    const stack_overflow_tag = sflow_tag || name;
+    const queries = db_queries || generateQueries(name);
 
     // Check if metrics exist for this database and date
     const metricsData = await getItemByQuery({
@@ -271,16 +149,16 @@ const processUnprocessedDatabases = async (databases) => {
 
     const metric = metricsData?.Items?.[0];
 
-    // Fetch StackOverflow metrics
-    const stackOverflowData = await getStackOverflowMetrics(stack_overflow_tag);
+    // Fetch GitHub metrics
+    const githubData = await getGitHubMetrics(queries[0]);
 
-    // Update popularity with StackOverflow metrics
+    // Update popularity with GitHub metrics
     const updatedPopularity = {
       ...metric?.popularity,
-      stackoverflowScore: calculateStackOverflowPopularity(stackOverflowData),
+      githubScore: calculateGitHubPopularity(githubData),
     };
 
-    // Update DynamoDB with StackOverflow data
+    // Update DynamoDB with GitHub data
     await updateItemInDynamoDB({
       table: TABLE_NAME.METRICES,
       Key: {
@@ -288,14 +166,14 @@ const processUnprocessedDatabases = async (databases) => {
         date: getYesterdayDate,
       },
       UpdateExpression:
-        "SET #popularity = :popularity, #stackOverflowData = :stackOverflowData",
+        "SET #popularity = :popularity, #githubData = :githubData",
       ExpressionAttributeNames: {
         "#popularity": "popularity",
-        "#stackOverflowData": "stackOverflowData",
+        "#githubData": "githubData",
       },
       ExpressionAttributeValues: {
         ":popularity": updatedPopularity,
-        ":stackOverflowData": stackOverflowData,
+        ":githubData": githubData,
       },
       ConditionExpression:
         "attribute_exists(#popularity) OR attribute_not_exists(#popularity)",
@@ -304,7 +182,7 @@ const processUnprocessedDatabases = async (databases) => {
     // Add databaseId to processedDatabaseIds
     processedDatabaseIds.push(databaseId);
 
-    console.log(`Successfully updated stackOverflowData for name: ${name}`);
+    console.log(`Successfully updated GitHub data for: ${name}`);
   }
 
   return processedDatabaseIds;
@@ -312,9 +190,9 @@ const processUnprocessedDatabases = async (databases) => {
 
 // Update tracking table in DynamoDB
 const updateTrackingTable = async (
-  mergedDatabases,
-  processedDatabaseIds,
-  unprocessedDatabases
+  mergedDatabases, // Already processed databases
+  processedDatabaseIds, // Newly processed databases
+  unprocessedDatabases // Databases that are yet to be processed
 ) => {
   // Merge newly processed databases with already processed databases
   const newMergedDatabases = [...mergedDatabases, ...processedDatabaseIds];
@@ -328,19 +206,21 @@ const updateTrackingTable = async (
     table: TABLE_NAME.TRACKING_RESOURCES,
     Key: {
       date: getTodayDate,
-      resource_type: RESOURCE_TYPE.STACKOVERFLOW,
+      resource_type: RESOURCE_TYPE.GITHUB,
     },
     UpdateExpression:
-      "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #table_name = :tableName, #status = :status",
+      "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #resource_type = :resourceType, #table_name = :tableName, #status = :status",
     ExpressionAttributeNames: {
       "#processed_databases": "processed_databases",
       "#merged_databases": "merged_databases",
+      "#resource_type": "resource_type",
       "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
       ":processedDatabases": processedDatabaseIds, // Newly processed databases
       ":mergedDatabases": newMergedDatabases, // Already processed databases
+      ":resourceType": RESOURCE_TYPE.GITHUB, // Resource type
       ":tableName": TABLE_NAME.DATABASES, // It shows that this tracking is for databases
       ":status": status, // Status of the tracking
     },

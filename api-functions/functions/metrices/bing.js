@@ -1,11 +1,10 @@
-import Bottleneck from "bottleneck";
 import {
-  calculateGooglePopularity,
+  calculateBingPopularity,
   getYesterdayDate,
-  getTodayDate,
-  sendResponse,
   getTwoDaysAgoDate,
+  sendResponse,
   generateQueries,
+  getTodayDate,
 } from "../../helpers/helpers.js";
 import {
   TABLE_NAME,
@@ -17,29 +16,25 @@ import {
   fetchAllItemByDynamodbIndex,
   updateItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
-import { fetchGoogleData } from "../../services/googleService.js";
+import { getBingMetrics } from "../../services/bingService.js";
 
-// Global rate limiter to control the number of concurrent requests
-const limiter = new Bottleneck({
-  maxConcurrent: 3, // Allow 3 concurrent requests
-  minTime: 100, // 100ms delay between requests (10 requests per second)
-});
-
-// Main handler function for the Lambda
 export const handler = async (event) => {
   try {
-    console.log("Fetching all databases (active and inactive)...");
+    console.log(
+      "Fetching all databases (active and inactive) for Bing data..."
+    );
+
+    // Fetch all databases
     const databases = await fetchAllDatabases();
 
     if (!databases || databases.length === 0) {
-      console.log("No databases found.");
-      return sendResponse(404, "No databases found.");
+      console.log("No databases found for Bing.");
+      return sendResponse(404, "No databases found for Bing.");
     }
 
-    // We fetch the tracking data to determine which databases have already been processed
+    // Fetch tracking data
     const trackingData = await fetchTrackingData();
 
-    // Get the tracking item from the response
     const trackingItem = trackingData?.Items?.[0];
 
     // Get the list of databases that have already been processed
@@ -47,12 +42,9 @@ export const handler = async (event) => {
 
     console.log("Tracking item:", trackingItem);
 
-    // Separate unprocessed and already processed databases
-    const {
-      unprocessedDatabases,
-      alreadyProcessedDatabases,
-      remainingDatabases,
-    } = categorizeDatabases(databases, mergedDatabases);
+    // Categorize databases into unprocessed and already processed
+    const { unprocessedDatabases, alreadyProcessedDatabases } =
+      categorizeDatabases(databases, mergedDatabases);
 
     console.log("Unprocessed databases:", unprocessedDatabases.length);
     console.log(
@@ -63,7 +55,7 @@ export const handler = async (event) => {
     // Process already processed databases
     await processAlreadyProcessedDatabases(alreadyProcessedDatabases);
 
-    // Process unprocessed databases and collect their IDs
+    // Process unprocessed databases in batches
     const processedDatabaseIds = await processUnprocessedDatabases(
       unprocessedDatabases
     );
@@ -71,18 +63,18 @@ export const handler = async (event) => {
     // Process remaining databases with placeholder values
     await processRemainingDatabases(unprocessedDatabases.slice(15));
 
-    // Update the tracking table with the current state
+    // Update the tracking table with the new state
     await updateTrackingTable(
       mergedDatabases, // Already processed databases
       processedDatabaseIds, // Newly processed databases
       unprocessedDatabases // Remaining unprocessed databases
     );
 
-    console.log("Tracking and ranking tables updated successfully.");
-    return sendResponse(200, "Google data updated successfully.");
+    console.log("Tracking and ranking tables updated successfully for Bing.");
+    return sendResponse(200, "Bing data updated successfully.");
   } catch (error) {
-    console.error("Error processing Google metrics:", error);
-    return sendResponse(500, "Failed to process Google metrics.", {
+    console.error("Error processing Bing metrics:", error);
+    return sendResponse(500, "Failed to process Bing metrics.", {
       error: error.message,
     });
   }
@@ -90,10 +82,10 @@ export const handler = async (event) => {
 
 // Fetch all active and inactive databases
 const fetchAllDatabases = async () => {
-  const activeDatabases = await fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE);
-  const inactiveDatabases = await fetchDatabasesByStatus(
-    DATABASE_STATUS.INACTIVE
-  );
+  const [activeDatabases, inactiveDatabases] = await Promise.all([
+    fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE),
+    fetchDatabasesByStatus(DATABASE_STATUS.INACTIVE),
+  ]);
 
   return [...(activeDatabases || []), ...(inactiveDatabases || [])].sort(
     (a, b) =>
@@ -128,13 +120,13 @@ const fetchTrackingData = async () => {
     },
     ExpressionAttributeValues: {
       ":date": getYesterdayDate,
-      ":resourceType": RESOURCE_TYPE.GOOGLE,
+      ":resourceType": RESOURCE_TYPE.BING,
       ":tableName": TABLE_NAME.DATABASES,
     },
   });
 };
 
-// Categorize databases into unprocessed, already processed, and remaining groups
+// Categorize databases into unprocessed and already processed groups
 const categorizeDatabases = (databases, mergedDatabases) => {
   const unprocessedDatabases = databases.filter(
     (db) => !mergedDatabases.includes(db.id)
@@ -142,24 +134,15 @@ const categorizeDatabases = (databases, mergedDatabases) => {
   const alreadyProcessedDatabases = databases.filter((db) =>
     mergedDatabases.includes(db.id)
   );
-  const remainingDatabases = databases.slice(
-    unprocessedDatabases.length + alreadyProcessedDatabases.length
-  );
-
-  return {
-    unprocessedDatabases,
-    alreadyProcessedDatabases,
-    remainingDatabases,
-  };
+  return { unprocessedDatabases, alreadyProcessedDatabases };
 };
 
-// Process databases that have already been processed
+// Process already processed databases
 const processAlreadyProcessedDatabases = async (databases) => {
   return Promise.all(
     databases.map(async (db) => {
       const { id: databaseId, name } = db;
 
-      // Fetch existing metrics from DynamoDB
       const metricsData = await getItemByQuery({
         table: TABLE_NAME.METRICES,
         KeyConditionExpression: "#database_id = :database_id and #date = :date",
@@ -175,13 +158,11 @@ const processAlreadyProcessedDatabases = async (databases) => {
 
       const metric = metricsData?.Items?.[0];
 
-      // Calculate updated popularity metrics
       const updatedPopularity = {
         ...metric?.popularity,
-        googleScore: calculateGooglePopularity(metric?.googleData || []),
+        bingScore: calculateBingPopularity(metric?.bingData || []),
       };
 
-      // Update DynamoDB with the updated popularity
       await updateItemInDynamoDB({
         table: TABLE_NAME.METRICES,
         Key: {
@@ -189,20 +170,20 @@ const processAlreadyProcessedDatabases = async (databases) => {
           date: getYesterdayDate,
         },
         UpdateExpression:
-          "SET #popularity = :popularity, #googleData = :googleData , #isGoogleDataCopied =:isGoogleDataCopied",
+          "SET #popularity = :popularity, #bingData = :bingData , #isBingDataCopied =:isBingDataCopied",
         ExpressionAttributeNames: {
           "#popularity": "popularity",
-          "#googleData": "googleData",
-          "#isGoogleDataCopied": "isGoogleDataCopied",
+          "#bingData": "bingData",
+          "#isBingDataCopied": "isBingDataCopied",
         },
         ExpressionAttributeValues: {
           ":popularity": updatedPopularity,
-          ":googleData": metric?.googleData,
-          ":isGoogleDataCopied": true,
+          ":bingData": metric?.bingData,
+          ":isBingDataCopied": true, // Set to true to indicate that the data is copied
         },
       });
 
-      console.log(`Already processed database: ${name}`);
+      console.log(`Processed already processed database: ${name}`);
     })
   );
 };
@@ -213,10 +194,8 @@ const processUnprocessedDatabases = async (databases) => {
   const processedDatabaseIds = [];
 
   for (const db of databasesToProcess) {
-    const { id: databaseId, queries: db_queries, name } = db;
-    const queries = db_queries || generateQueries(name);
+    const { id: databaseId, queries, name } = db;
 
-    // Fetch existing metrics
     const metricsData = await getItemByQuery({
       table: TABLE_NAME.METRICES,
       KeyConditionExpression: "#database_id = :database_id and #date = :date",
@@ -232,16 +211,13 @@ const processUnprocessedDatabases = async (databases) => {
 
     const metric = metricsData?.Items?.[0];
 
-    // Fetch Google data for the queries
-    const googleData = await fetchGoogleDataForQueries(queries);
+    const bingData = await getBingMetrics(queries);
 
-    // Calculate updated popularity metrics
     const updatedPopularity = {
       ...metric?.popularity,
-      googleScore: calculateGooglePopularity(googleData),
+      bingScore: calculateBingPopularity(bingData),
     };
 
-    // Update DynamoDB with the new metrics
     await updateItemInDynamoDB({
       table: TABLE_NAME.METRICES,
       Key: {
@@ -249,75 +225,39 @@ const processUnprocessedDatabases = async (databases) => {
         date: getYesterdayDate,
       },
       UpdateExpression:
-        "SET #popularity = :popularity, #googleData = :googleData, #isGoogleDataCopied = :isGoogleDataCopied",
+        "SET #popularity = :popularity, #bingData = :bingData ,#isBingDataCopied =:isBingDataCopied ",
       ExpressionAttributeNames: {
         "#popularity": "popularity",
-        "#googleData": "googleData",
-        "#isGoogleDataCopied": "isGoogleDataCopied",
+        "#bingData": "bingData",
+        "#isBingDataCopied": "isBingDataCopied",
       },
       ExpressionAttributeValues: {
         ":popularity": updatedPopularity,
-        ":googleData": googleData,
-        ":isGoogleDataCopied": false,
+        ":bingData": bingData,
+        ":isBingDataCopied": false, // Set to false to indicate that the data is not copied
       },
     });
 
     processedDatabaseIds.push(databaseId);
-    console.log(`Successfully updated Google data for database: ${name}`);
+    console.log(`Processed unprocessed database: ${name}`);
   }
 
   return processedDatabaseIds;
 };
 
-// Fetch Google data for all queries
-const fetchGoogleDataForQueries = async (queries) => {
-  const googleData = [];
-
-  // Process first query with and without date restriction
-  googleData.push({
-    query: queries[0],
-    totalResultsWithoutDate: await limiter.schedule(() =>
-      fetchGoogleData(queries[0], false)
-    ),
-  });
-
-  googleData.push({
-    query: queries[0],
-    totalResultsWithDate: await limiter.schedule(() =>
-      fetchGoogleData(queries[0], true)
-    ),
-  });
-
-  // Process remaining queries with date restriction
-  const remainingResults = await Promise.all(
-    queries.slice(1).map((query) =>
-      limiter.schedule(() =>
-        fetchGoogleData(query, true).then((totalResults) => ({
-          query,
-          totalResults,
-        }))
-      )
-    )
-  );
-
-  googleData.push(...remainingResults);
-  return googleData;
-};
-
-// Process remaining unprocessed databases with placeholder values
+// Process remaining databases with placeholder values
 const processRemainingDatabases = async (databases) => {
   return Promise.all(
     databases.map(async (db) => {
       const { id: databaseId, name } = db;
+
       const queries = db.queries || generateQueries(name);
 
-      // Prepare placeholder Google data
-      const googleData = queries.map((query) => ({
+      const bingData = queries.map((query) => ({
         query,
-        totalResults: 99,
+        totalEstimatedMatches: 99,
       }));
 
-      // Update DynamoDB with placeholder data
       await updateItemInDynamoDB({
         table: TABLE_NAME.METRICES,
         Key: {
@@ -325,18 +265,18 @@ const processRemainingDatabases = async (databases) => {
           date: getYesterdayDate,
         },
         UpdateExpression:
-          "SET #googleData = :googleData, #isPublished = :isPublished",
+          "SET #bingData = :bingData, #isPublished = :isPublished",
         ExpressionAttributeNames: {
-          "#googleData": "googleData",
+          "#bingData": "bingData",
           "#isPublished": "isPublished",
         },
         ExpressionAttributeValues: {
-          ":googleData": googleData,
-          ":isPublished": "NO",
+          ":bingData": bingData,
+          ":isPublished": "NO", // Set to NO to indicate that the data is not published
         },
       });
 
-      console.log(`Updated unprocessed database: ${name}`);
+      console.log(`Processed remaining database: ${name}`);
     })
   );
 };
@@ -350,16 +290,14 @@ const updateTrackingTable = async (
   // Merge newly processed databases with already processed databases
   const newMergedDatabases = [...mergedDatabases, ...processedDatabaseIds];
 
-  // Determine the status of the tracking
   const status =
     unprocessedDatabases?.length === 0 ? "COMPLETED" : "INPROGRESS";
 
-  // Update the tracking table with the new state
   return updateItemInDynamoDB({
     table: TABLE_NAME.TRACKING_RESOURCES,
     Key: {
       date: getTodayDate,
-      resource_type: RESOURCE_TYPE.GOOGLE,
+      resource_type: RESOURCE_TYPE.BING,
     },
     UpdateExpression:
       "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #table_name = :tableName, #status = :status",
@@ -370,10 +308,10 @@ const updateTrackingTable = async (
       "#status": "status",
     },
     ExpressionAttributeValues: {
-      ":processedDatabases": processedDatabaseIds, // Newly processed databases
-      ":mergedDatabases": newMergedDatabases, // Already processed databases
-      ":tableName": TABLE_NAME.DATABASES, // It shows that this tracking is for databases
-      ":status": status, // Status of the tracking
+      ":processedDatabases": processedDatabaseIds,
+      ":mergedDatabases": newMergedDatabases,
+      ":tableName": TABLE_NAME.DATABASES,
+      ":status": status,
     },
   });
 };
