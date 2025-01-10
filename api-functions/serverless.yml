@@ -295,6 +295,14 @@ functions:
           rate: cron(20 5 * * ? *) # Fifth job at 5:20 AM UTC
       - schedule:
           rate: cron(25 5 * * ? *) # Sixth job at 5:25 AM UTC
+      - schedule:
+          rate: cron(30 5 * * ? *) # Seventh job at 5:30 AM UTC
+      - schedule:
+          rate: cron(35 5 * * ? *) # Eighth job at 5:35 AM UTC
+      - schedule:
+          rate: cron(40 5 * * ? *) # Ninth job at 5:40 AM UTC
+      - schedule:
+          rate: cron(45 5 * * ? *) # Tenth job at 5:45 AM UTC
 
   getStackoverflowMetrices:
     handler: functions/metrices/getStackoverflowMetrices.handler
@@ -318,26 +326,26 @@ functions:
     timeout: 300
     events:
       - schedule:
-          rate: cron(30 5 * * ? *) # Runs daily at 5:30 PM UTC
+          rate: cron(50 5 * * ? *) # Runs daily at 5:50 PM UTC
 
   getBingMetrices:
     handler: functions/metrices/getBingMetrices.handler
     timeout: 300
     events:
       - schedule:
-          rate: cron(40 5 * * ? *) # Runs daily at 5:40 PM UTC
+          rate: cron(0 6 * * ? *) # Runs daily at 6:00 PM UTC
 
   updatePopularity:
     handler: functions/metrices/updatePopularity.handler
     events:
       - schedule:
-          rate: cron(50 5 * * ? *) # Runs daily at 5:50 PM UTC
+          rate: cron(5 6 * * ? *) # Runs daily at 6:05 PM UTC
 
   addRanking:
     handler: functions/rankings/addRanking.handler
     events:
       - schedule:
-          rate: cron(0 6 * * ? *) # Runs daily at 6:00 PM UTC
+          rate: cron(10 6 * * ? *) # Runs daily at 6:10 PM UTC
 
 resources:
   Resources:

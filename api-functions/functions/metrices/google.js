@@ -142,6 +142,7 @@ const categorizeDatabases = (databases, mergedDatabases) => {
   const alreadyProcessedDatabases = databases.filter((db) =>
     mergedDatabases.includes(db.id)
   );
+
   const remainingDatabases = databases.slice(
     unprocessedDatabases.length + alreadyProcessedDatabases.length
   );
@@ -155,6 +156,7 @@ const categorizeDatabases = (databases, mergedDatabases) => {
 
 // Process databases that have already been processed
 const processAlreadyProcessedDatabases = async (databases) => {
+  console.log("Starting to process databases which are already processed...");
   return Promise.all(
     databases.map(async (db) => {
       const { id: databaseId, name } = db;
@@ -209,6 +211,9 @@ const processAlreadyProcessedDatabases = async (databases) => {
 
 // Process unprocessed databases
 const processUnprocessedDatabases = async (databases) => {
+  console.log(
+    "Starting to process unprocessed databases which are not processed yet..."
+  );
   const databasesToProcess = databases.slice(0, 15);
   const processedDatabaseIds = [];
 
@@ -306,16 +311,40 @@ const fetchGoogleDataForQueries = async (queries) => {
 
 // Process remaining unprocessed databases with placeholder values
 const processRemainingDatabases = async (databases) => {
+  console.log(
+    "Starting to process remaining unprocessed databases with placeholder values..."
+  );
   return Promise.all(
     databases.map(async (db) => {
       const { id: databaseId, name } = db;
       const queries = db.queries || generateQueries(name);
+
+      // Fetch existing metrics
+      const metricsData = await getItemByQuery({
+        table: TABLE_NAME.METRICES,
+        KeyConditionExpression: "#database_id = :database_id and #date = :date",
+        ExpressionAttributeNames: {
+          "#database_id": "database_id",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":database_id": databaseId,
+          ":date": getYesterdayDate,
+        },
+      });
+
+      const metric = metricsData?.Items?.[0];
 
       // Prepare placeholder Google data
       const googleData = queries.map((query) => ({
         query,
         totalResults: 99,
       }));
+      // Calculate updated popularity metrics
+      const updatedPopularity = {
+        ...metric?.popularity,
+        googleScore: calculateGooglePopularity(googleData),
+      };
 
       // Update DynamoDB with placeholder data
       await updateItemInDynamoDB({
@@ -325,13 +354,15 @@ const processRemainingDatabases = async (databases) => {
           date: getYesterdayDate,
         },
         UpdateExpression:
-          "SET #googleData = :googleData, #isPublished = :isPublished",
+          "SET #popularity = :popularity, #googleData = :googleData, #isPublished = :isPublished",
         ExpressionAttributeNames: {
           "#googleData": "googleData",
           "#isPublished": "isPublished",
+          "#popularity": "popularity",
         },
         ExpressionAttributeValues: {
           ":googleData": googleData,
+          ":popularity": updatedPopularity,
           ":isPublished": "NO",
         },
       });
@@ -347,6 +378,9 @@ const updateTrackingTable = async (
   processedDatabaseIds, // Newly processed databases
   unprocessedDatabases // Remaining unprocessed databases
 ) => {
+  console.log(
+    "Updating the tracking table with the new state of the databases..."
+  );
   // Merge newly processed databases with already processed databases
   const newMergedDatabases = [...mergedDatabases, ...processedDatabaseIds];
 

@@ -137,12 +137,21 @@ export const handler = async (event) => {
 
     const trackingItem = trackingData?.Items?.[0];
 
+    // Check if all databases have been processed
+    if (trackingItem.status === "COMPLETED") {
+      console.log("All databases have been processed.");
+      return sendResponse(200, "All databases have been processed.", true);
+    }
+
     // Get the list of databases that have already been processed
     const mergedDatabases = trackingItem?.merged_databases || [];
 
     // Separate unprocessed and processed databases
-    const { unprocessedDatabases, alreadyProcessedDatabases } =
-      categorizeDatabases(databases, mergedDatabases);
+    const {
+      unprocessedDatabases,
+      alreadyProcessedDatabases,
+      remainingDatabases,
+    } = categorizeDatabases(databases, mergedDatabases);
 
     console.log("Unprocessed databases:", unprocessedDatabases.length);
     console.log(
@@ -150,16 +159,16 @@ export const handler = async (event) => {
       alreadyProcessedDatabases.length
     );
 
-    // Process unprocessed databases in batches of 50
+    // Process unprocessed databases in batches of 30
     const processedDatabaseIds = await processUnprocessedDatabases(
-      unprocessedDatabases.slice(0, 50)
+      unprocessedDatabases.slice(0, 30)
     );
 
     // Update the tracking table
     await updateTrackingTable(
       mergedDatabases,
       processedDatabaseIds,
-      unprocessedDatabases
+      remainingDatabases
     );
 
     console.log("Tracking table updated successfully.");
@@ -224,7 +233,15 @@ const categorizeDatabases = (databases, processedDatabases) => {
   const alreadyProcessedDatabases = databases.filter((db) =>
     processedDatabases.includes(db.id)
   );
-  return { unprocessedDatabases, alreadyProcessedDatabases };
+
+  const remainingDatabases = databases.slice(
+    unprocessedDatabases.length + alreadyProcessedDatabases.length
+  );
+  return {
+    unprocessedDatabases,
+    alreadyProcessedDatabases,
+    remainingDatabases,
+  };
 };
 
 // Process unprocessed databases
@@ -251,6 +268,13 @@ const processUnprocessedDatabases = async (databases) => {
     });
 
     const metric = metricsData?.Items?.[0];
+
+    // Check if GitHub data already exists for this database then skip
+    if (metric?.githubData) {
+      console.log(`GitHub data already exists for: ${name}`);
+      processedDatabaseIds.push(databaseId);
+      continue;
+    }
 
     // Fetch GitHub metrics
     const githubData = await getGitHubMetrics(queries[0]);
@@ -312,18 +336,16 @@ const updateTrackingTable = async (
       resource_type: RESOURCE_TYPE.GITHUB,
     },
     UpdateExpression:
-      "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #resource_type = :resourceType, #table_name = :tableName, #status = :status",
+      "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #table_name = :tableName, #status = :status",
     ExpressionAttributeNames: {
       "#processed_databases": "processed_databases",
       "#merged_databases": "merged_databases",
-      "#resource_type": "resource_type",
       "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
       ":processedDatabases": processedDatabaseIds, // Newly processed databases
       ":mergedDatabases": newMergedDatabases, // Already processed databases
-      ":resourceType": RESOURCE_TYPE.GITHUB, // Resource type
       ":tableName": TABLE_NAME.DATABASES, // It shows that this tracking is for databases
       ":status": status, // Status of the tracking
     },

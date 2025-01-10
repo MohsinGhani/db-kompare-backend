@@ -3,6 +3,10 @@ import {
   sendResponse,
   calculateOverallPopularity,
   adjustAndRecalculatePopularity,
+  calculateBingPopularity,
+  calculateGooglePopularity,
+  calculateStackOverflowPopularity,
+  calculateGitHubPopularity,
 } from "../../helpers/helpers.js";
 import { TABLE_NAME, DATABASE_STATUS } from "../../helpers/constants.js";
 import {
@@ -51,16 +55,30 @@ export const handler = async (event) => {
             console.log(`No metrics found for name: ${name}`);
             return { databaseId, success: false, reason: "No metrics found" };
           }
+          let updatedPopularity;
+          let ui_popularity;
 
-          // Updating the popularity Object
-          const updatedPopularity = {
-            ...metric.popularity,
-            totalScore: calculateOverallPopularity(metric.popularity),
-          };
+          const { bingScore, githubScore, googleScore, stackoverflowScore } =
+            metric.popularity;
 
-          const ui_popularity = adjustAndRecalculatePopularity(
-            metric.popularity
-          );
+          if (bingScore && githubScore && googleScore && stackoverflowScore) {
+            // Updating the popularity Object
+            updatedPopularity = {
+              ...metric.popularity,
+              totalScore: calculateOverallPopularity(metric.popularity),
+            };
+            ui_popularity = adjustAndRecalculatePopularity(metric.popularity);
+          } else {
+            updatedPopularity = {
+              bingScore: calculateBingPopularity(metric.bingData),
+              googleScore: calculateGooglePopularity(metric.googleData),
+              stackoverflowScore: calculateStackOverflowPopularity(
+                metric.stackOverflowData
+              ),
+              githubScore: calculateGitHubPopularity(metric.githubData),
+            };
+            ui_popularity = adjustAndRecalculatePopularity(updatedPopularity);
+          }
 
           // Updating the database to add BING data and BING score in our database
           await updateItemInDynamoDB({

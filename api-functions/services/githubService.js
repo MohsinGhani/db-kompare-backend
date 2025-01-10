@@ -3,7 +3,7 @@ import moment from "moment";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_API_URL = "https://api.github.com/search";
-const REQUEST_DELAY = 1000; // Delay between batches in milliseconds
+const REQUEST_DELAY = 2000; // Default delay between requests in milliseconds
 
 async function withRetry(fn, retries = 3, delayTime = 1000) {
   let attempt = 0;
@@ -11,6 +11,23 @@ async function withRetry(fn, retries = 3, delayTime = 1000) {
     try {
       return await fn();
     } catch (error) {
+      const rateLimitReset = error.response?.headers["x-ratelimit-reset"];
+      const remainingRequests =
+        error.response?.headers["x-ratelimit-remaining"];
+
+      // Handle rate limit exceeded case
+      if (remainingRequests === "0" && rateLimitReset) {
+        const waitTime = rateLimitReset * 1000 - Date.now();
+        console.error(
+          `Rate limit exceeded. Waiting ${Math.ceil(
+            waitTime / 1000
+          )} seconds before retrying...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        continue; // Retry after waiting for the reset
+      }
+
+      // Retry logic for other errors
       attempt++;
       console.error(`Attempt ${attempt} failed: ${error.message}`);
       if (attempt < retries) {
@@ -32,9 +49,10 @@ async function fetchMetricsByDateRange(
   let totalRepos = 0;
   let page = 1;
   const perPage = 100;
-  const maxPages = 10; // GitHub limits to 1,000 results
+  const maxPages = 10;
 
   try {
+    // Fetch repositories by date range
     while (page <= maxPages) {
       const response = await withRetry(() =>
         axios.get(`${GITHUB_API_URL}/repositories`, {
@@ -52,6 +70,7 @@ async function fetchMetricsByDateRange(
       const repositories = response.data.items;
       totalRepos = response.data?.total_count;
 
+      // Process unique repositories
       repositories.forEach((repo) => {
         if (!processedRepoIds.has(repo.id)) {
           totalStars += repo.stargazers_count;
@@ -60,6 +79,25 @@ async function fetchMetricsByDateRange(
       });
 
       console.log(`Processed page ${page} for query "${query}"`);
+
+      // Monitor rate limits
+      const remainingRequests = response.headers["x-ratelimit-remaining"];
+      const rateLimitReset = response.headers["x-ratelimit-reset"];
+
+      console.log("Remaining requests:", remainingRequests);
+      console.log("Rate limit reset:", rateLimitReset);
+
+      // Wait if rate limit is reached
+      if (remainingRequests === "0" && rateLimitReset) {
+        // Wait until the rate limit is reset
+        const waitTime = rateLimitReset * 1000 - Date.now();
+        console.error(
+          `Rate limit reached. Waiting ${Math.ceil(waitTime / 1000)} seconds.`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      }
+
+      // Break if there are no more repositories
       if (repositories.length < perPage) break;
 
       page++;
@@ -84,7 +122,7 @@ async function fetchTotalIssuesCount(query, date) {
       axios.get(`${GITHUB_API_URL}/issues`, {
         headers,
         params: {
-          q: `${query} created:${date} state:open`,
+          q: `${query} created:${date}`,
         },
       })
     );

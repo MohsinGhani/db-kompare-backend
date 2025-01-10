@@ -444,16 +444,41 @@ const fetchGoogleDataForQueries = async (queries) => {
 
 // Process remaining unprocessed databases with placeholder values
 const processRemainingDatabases = async (databases) => {
+  console.log(
+    "Starting to process remaining unprocessed databases with placeholder values..."
+  );
   return Promise.all(
     databases.map(async (db) => {
       const { id: databaseId, name } = db;
       const queries = db.queries || generateQueries(name);
+
+      // Fetch existing metrics
+      const metricsData = await getItemByQuery({
+        table: TABLE_NAME.METRICES,
+        KeyConditionExpression: "#database_id = :database_id and #date = :date",
+        ExpressionAttributeNames: {
+          "#database_id": "database_id",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":database_id": databaseId,
+          ":date": getYesterdayDate,
+        },
+      });
+
+      const metric = metricsData?.Items?.[0];
 
       // Prepare placeholder Google data
       const googleData = queries.map((query) => ({
         query,
         totalResults: 99,
       }));
+
+      // Calculate updated popularity metrics
+      const updatedPopularity = {
+        ...metric?.popularity,
+        googleScore: calculateGooglePopularity(googleData),
+      };
 
       // Update DynamoDB with placeholder data
       await updateItemInDynamoDB({
@@ -463,13 +488,15 @@ const processRemainingDatabases = async (databases) => {
           date: getYesterdayDate,
         },
         UpdateExpression:
-          "SET #googleData = :googleData, #isPublished = :isPublished",
+          "SET #popularity = :popularity, #googleData = :googleData, #isPublished = :isPublished",
         ExpressionAttributeNames: {
           "#googleData": "googleData",
           "#isPublished": "isPublished",
+          "#popularity": "popularity",
         },
         ExpressionAttributeValues: {
           ":googleData": googleData,
+          ":popularity": updatedPopularity,
           ":isPublished": "NO",
         },
       });

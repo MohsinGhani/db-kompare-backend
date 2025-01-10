@@ -151,8 +151,11 @@ export const handler = async (event) => {
     const mergedDatabases = trackingItem?.merged_databases || [];
 
     // Separate unprocessed and processed databases
-    const { unprocessedDatabases, alreadyProcessedDatabases } =
-      categorizeDatabases(databases, mergedDatabases);
+    const {
+      unprocessedDatabases,
+      alreadyProcessedDatabases,
+      remainingDatabases,
+    } = categorizeDatabases(databases, mergedDatabases);
 
     console.log("Unprocessed databases:", unprocessedDatabases.length);
     console.log(
@@ -169,7 +172,7 @@ export const handler = async (event) => {
     await updateTrackingTable(
       mergedDatabases,
       processedDatabaseIds,
-      unprocessedDatabases
+      remainingDatabases
     );
 
     console.log("Tracking table updated successfully.");
@@ -242,7 +245,14 @@ const categorizeDatabases = (databases, processedDatabases) => {
   const alreadyProcessedDatabases = databases.filter((db) =>
     processedDatabases.includes(db.id)
   );
-  return { unprocessedDatabases, alreadyProcessedDatabases };
+  const remainingDatabases = databases.slice(
+    unprocessedDatabases.length + alreadyProcessedDatabases.length
+  );
+  return {
+    unprocessedDatabases,
+    alreadyProcessedDatabases,
+    remainingDatabases,
+  };
 };
 
 // Process unprocessed databases

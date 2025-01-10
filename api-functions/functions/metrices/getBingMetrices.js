@@ -343,7 +343,10 @@ const processUnprocessedDatabases = async (databases) => {
   const processedDatabaseIds = [];
 
   for (const db of databasesToProcess) {
-    const { id: databaseId, queries, name } = db;
+    const { id: databaseId, queries: db_queries, name } = db;
+
+    // if queries are not present in the database then generate queries
+    const queries = db_queries || generateQueries(name);
 
     const metricsData = await getItemByQuery({
       table: TABLE_NAME.METRICES,
@@ -402,10 +405,30 @@ const processRemainingDatabases = async (databases) => {
 
       const queries = db.queries || generateQueries(name);
 
+      const metricsData = await getItemByQuery({
+        table: TABLE_NAME.METRICES,
+        KeyConditionExpression: "#database_id = :database_id and #date = :date",
+        ExpressionAttributeNames: {
+          "#database_id": "database_id",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":database_id": databaseId,
+          ":date": getYesterdayDate,
+        },
+      });
+
+      const metric = metricsData?.Items?.[0];
+
       const bingData = queries.map((query) => ({
         query,
         totalEstimatedMatches: 99,
       }));
+
+      const updatedPopularity = {
+        ...metric?.popularity,
+        bingScore: calculateBingPopularity(bingData),
+      };
 
       await updateItemInDynamoDB({
         table: TABLE_NAME.METRICES,
@@ -414,13 +437,15 @@ const processRemainingDatabases = async (databases) => {
           date: getYesterdayDate,
         },
         UpdateExpression:
-          "SET #bingData = :bingData, #isPublished = :isPublished",
+          "SET #popularity = :popularity, #bingData = :bingData, #isPublished = :isPublished",
         ExpressionAttributeNames: {
           "#bingData": "bingData",
           "#isPublished": "isPublished",
+          "#popularity": "popularity",
         },
         ExpressionAttributeValues: {
           ":bingData": bingData,
+          ":popularity": updatedPopularity,
           ":isPublished": "NO", // Set to NO to indicate that the data is not published
         },
       });
