@@ -138,10 +138,10 @@ export const handler = async (event) => {
     const trackingItem = trackingData?.Items?.[0];
 
     // Check if all databases have been processed
-    if (trackingItem.status === "COMPLETED") {
-      console.log("All databases have been processed.");
-      return sendResponse(200, "All databases have been processed.", true);
-    }
+    // if (trackingItem?.status && trackingItem?.status === "COMPLETED") {
+    //   console.log("All databases have been processed.");
+    //   return sendResponse(200, "All databases have been processed.", true);
+    // }
 
     // Get the list of databases that have already been processed
     const mergedDatabases = trackingItem?.merged_databases || [];
