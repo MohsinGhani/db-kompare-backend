@@ -7,6 +7,7 @@ export const TABLE_NAME = {
   BLOGS: process.env.BLOGS_TABLE,
   SAVED_BLOGS: process.env.SAVED_BLOGS_TABLE,
   TRACKING_RESOURCES: process.env.TRACKING_RESOURCES_TABLE,
+  DB_TOOL_CATEGORIES: process.env.DB_TOOL_CATEGORIES_TABLE,
 };
 
 export const STATUS_CODE = {
@@ -16,6 +17,11 @@ export const STATUS_CODE = {
 };
 
 export const DATABASE_STATUS = {
+  ALL: "ALL",
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+};
+export const DB_TOOL_STATUS = {
   ALL: "ALL",
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",

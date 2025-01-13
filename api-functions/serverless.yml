@@ -14,6 +14,7 @@ custom:
   blogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.BLOGS_TABLE}
   savedBlogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SAVED_BLOGS_TABLE}
   trackingResourcesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TRACKING_RESOURCES_TABLE}
+  dbToolCategoriesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOL_CATEGORIES_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -47,6 +48,7 @@ provider:
     RANKING_TABLE: db-kompare-database-rankings-${self:provider.stage}
     USERS_TABLE: db-kompare-users-${self:provider.stage}
     TRACKING_RESOURCES_TABLE: db-kompare-tracking-resources-${self:provider.stage}
+    DB_TOOL_CATEGORIES_TABLE: db-kompare-dbtools-categories-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -79,6 +81,7 @@ provider:
           Resource:
             - ${self:custom.databasesTableArn}/index/byStatus
             - ${self:custom.blogsTableArn}/index/byStatus
+            - ${self:custom.dbToolCategoriesTableArn}/index/byStatus
             - ${self:custom.blogsTableArn}/index/byIsPublished
             - ${self:custom.usersTableArn}/index/byEmail
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
@@ -89,6 +92,7 @@ provider:
             - ${self:custom.metricesTableArn} # Permission for metrices table
             - ${self:custom.blogsTableArn} # Permission for blogs table
             - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
+            - ${self:custom.dbToolCategoriesTableArn} # Permission for db tools categories table
             - ${self:custom.usersTableArn} # Permission for users table
             - ${self:custom.savedBlogsTableArn} # Permission for saved Blogs table
             - ${self:custom.trackingResourcesTableArn} # Permission for tracking resorces table
@@ -242,6 +246,34 @@ functions:
           method: delete
           cors: true
           private: true
+
+  addDbToolCategory:
+    handler: functions/dbtools-categories/addDbToolCategory.handler
+    events:
+      - http:
+          path: /add-dbtool-category
+          method: post
+          cors: true
+          private: true
+
+  getDbToolCategories:
+    handler: functions/dbtools-categories/getDbToolCategories.handler
+    events:
+      - http:
+          path: /get-dbtool-categories
+          method: get
+          cors: true
+          private: true
+
+  editDbToolCategory:
+    handler: functions/dbtools-categories/editDbToolCategory.handler
+    events:
+      - http:
+          path: /edit-dbtool-category
+          method: put
+          cors: true
+          private: true
+
   getDatabasesByIds:
     handler: functions/databases/getDatabaseByIds.handler
     events:
