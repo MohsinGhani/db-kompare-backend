@@ -8,6 +8,7 @@ export const TABLE_NAME = {
   SAVED_BLOGS: process.env.SAVED_BLOGS_TABLE,
   TRACKING_RESOURCES: process.env.TRACKING_RESOURCES_TABLE,
   DB_TOOL_CATEGORIES: process.env.DB_TOOL_CATEGORIES_TABLE,
+  DB_TOOLS: process.env.DB_TOOLS_TABLE,
 };
 
 export const STATUS_CODE = {

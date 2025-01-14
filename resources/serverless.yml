@@ -106,6 +106,38 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+    DbTools:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-dbtools-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: category_id
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byCategoryAndStatus
+            KeySchema:
+              - AttributeName: category_id
+                KeyType: HASH
+              - AttributeName: status
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
     DbToolCategories:
       Type: AWS::DynamoDB::Table
       Properties:

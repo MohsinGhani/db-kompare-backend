@@ -15,6 +15,7 @@ custom:
   savedBlogsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SAVED_BLOGS_TABLE}
   trackingResourcesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TRACKING_RESOURCES_TABLE}
   dbToolCategoriesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOL_CATEGORIES_TABLE}
+  dbToolsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -49,6 +50,7 @@ provider:
     USERS_TABLE: db-kompare-users-${self:provider.stage}
     TRACKING_RESOURCES_TABLE: db-kompare-tracking-resources-${self:provider.stage}
     DB_TOOL_CATEGORIES_TABLE: db-kompare-dbtools-categories-${self:provider.stage}
+    DB_TOOLS_TABLE: db-kompare-dbtools-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -82,6 +84,8 @@ provider:
             - ${self:custom.databasesTableArn}/index/byStatus
             - ${self:custom.blogsTableArn}/index/byStatus
             - ${self:custom.dbToolCategoriesTableArn}/index/byStatus
+            - ${self:custom.dbToolsTableArn}/index/byStatus
+            - ${self:custom.dbToolsTableArn}/index/byCategoryAndStatus
             - ${self:custom.blogsTableArn}/index/byIsPublished
             - ${self:custom.usersTableArn}/index/byEmail
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
