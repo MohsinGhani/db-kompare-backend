@@ -4,7 +4,7 @@ import { sendResponse } from "../../helpers/helpers.js";
 import { fetchDbToolCategoryDetail } from "../common/fetchDbToolCategoryDetail.js";
 
 export const handler = async (event) => {
-  const { category_id } = event.queryStringParameters || {};
+  const { category_id } = event.pathParameters || {};
 
   // Check if category_id is provided
   if (!category_id) {
