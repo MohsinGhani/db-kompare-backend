@@ -218,6 +218,7 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+    # Database Metrices Table
     Metrices:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -245,6 +246,36 @@ resources:
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
+
+    # DB Tool Metrices Table    
+    DBToolMetrices:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-dbtools-metrices-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: dbtool_id
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S
+          - AttributeName: includeMe
+            AttributeType: S
+        KeySchema:
+          - AttributeName: dbtool_id
+            KeyType: HASH
+          - AttributeName: date
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: byStatusAndDate
+            KeySchema:
+              - AttributeName: includeMe
+                KeyType: HASH
+              - AttributeName: date
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST   
+         
     DatabaseRankings:
       Type: AWS::DynamoDB::Table
       Properties:

@@ -15,7 +15,6 @@ import {
   updateItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
 import { getStackOverflowMetrics } from "../../services/stackOverflowService.js";
-import { fetchAllDbTools } from "../common/fetchAllDbTools.js";
 
 export const handler = async (event) => {
   try {

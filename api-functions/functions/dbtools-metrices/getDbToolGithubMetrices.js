@@ -2,7 +2,8 @@ import {
   getYesterdayDate,
   getTodayDate,
   sendResponse,
-  calculateStackOverflowPopularity,
+  calculateGitHubPopularity,
+  generateQueries,
 } from "../../helpers/helpers.js";
 import {
   TABLE_NAME,
@@ -14,12 +15,12 @@ import {
   fetchAllItemByDynamodbIndex,
   updateItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
-import { getStackOverflowMetrics } from "../../services/stackOverflowService.js";
+import { getGitHubMetrics } from "../../services/githubService.js";
 import { fetchAllDbTools } from "../common/fetchAllDbTools.js";
 
 export const handler = async (event) => {
   try {
-    console.log("Fetching all DB Tools for stackOverflowData...");
+    console.log("Fetching all DB Tools for GitHub data...");
 
     // Fetch all active and inactive DB Tools
     const dbTools = await fetchAllDbTools();
@@ -38,37 +39,31 @@ export const handler = async (event) => {
     const mergedDbTools = trackingItem?.merged_db_tools || [];
 
     // Separate unprocessed and processed DB Tools
-    const { unprocessedDbTools, alreadyProcessedDbTools, remainingDbTools } =
-      categorizeDbTools(dbTools, mergedDbTools);
+    const { unprocessedDbTools, alreadyProcessedDbTools } = categorizeDbTools(
+      dbTools,
+      mergedDbTools
+    );
 
     console.log("Unprocessed DB Tools:", unprocessedDbTools.length);
     console.log("Already processed DB Tools:", alreadyProcessedDbTools.length);
 
-    // Process unprocessed DB Tools in batches of 50
+    // Process unprocessed DB Tools in batches of 30
     const processedDbToolIds = await processUnprocessedDbTools(
-      unprocessedDbTools.slice(0, 50)
+      unprocessedDbTools.slice(0, 30)
     );
 
     // Update the tracking table
     await updateTrackingTable(
       mergedDbTools,
       processedDbToolIds,
-      remainingDbTools
+      unprocessedDbTools
     );
 
     console.log("Tracking table updated successfully.");
-    return sendResponse(
-      200,
-      "stackOverflowData metrics updated successfully",
-      true
-    );
+    return sendResponse(200, "GitHub metrics updated successfully", true);
   } catch (error) {
-    console.error("Error updating stackOverflowData metrics:", error);
-    return sendResponse(
-      500,
-      "Failed to update stackOverflowData metrics.",
-      error.message
-    );
+    console.error("Error updating GitHub metrics:", error);
+    return sendResponse(500, "Failed to update GitHub metrics.", error.message);
   }
 };
 
@@ -83,7 +78,7 @@ const fetchTrackingData = async () => {
     },
     ExpressionAttributeValues: {
       ":date": getTodayDate,
-      ":resourceType": RESOURCE_TYPE.STACKOVERFLOW,
+      ":resourceType": RESOURCE_TYPE.GITHUB,
     },
   });
 };
@@ -96,13 +91,10 @@ const categorizeDbTools = (dbTools, processedDbTools) => {
   const alreadyProcessedDbTools = dbTools.filter((tool) =>
     processedDbTools.includes(tool.id)
   );
-  const remainingDbTools = dbTools.slice(
-    unprocessedDbTools.length + alreadyProcessedDbTools.length
-  );
+
   return {
     unprocessedDbTools,
     alreadyProcessedDbTools,
-    remainingDbTools,
   };
 };
 
@@ -111,14 +103,9 @@ const processUnprocessedDbTools = async (dbTools) => {
   const processedDbToolIds = [];
 
   for (const tool of dbTools) {
-    const {
-      id: dbToolId,
-      stack_overflow_tag: sflow_tag,
-      tool_name: name,
-    } = tool;
+    const { id: dbToolId, queries: toolQueries, tool_name: name } = tool;
 
-    // Use tool name as tag if stack_overflow_tag is not provided
-    const stack_overflow_tag = sflow_tag || name;
+    const queries = toolQueries || generateQueries(name);
 
     // Check if metrics exist for this DB Tool and date
     const metricsData = await getItemByQuery({
@@ -136,21 +123,28 @@ const processUnprocessedDbTools = async (dbTools) => {
 
     const metric = metricsData?.Items?.[0];
 
-    // Fetch StackOverflow metrics
-    const stackOverflowData = {
-      totalQuestions: 0,
-      totalQuestionsAllTime: 2379,
-      totalViewCount: 0,
-    };
-    // const stackOverflowData = await getStackOverflowMetrics(stack_overflow_tag);
+    // Check if GitHub data already exists for this DB Tool then skip
+    if (metric?.githubData) {
+      console.log(`GitHub data already exists for: ${name}`);
+      processedDbToolIds.push(dbToolId);
+      continue;
+    }
 
-    // Update popularity with StackOverflow metrics
+    // Fetch GitHub metrics
+    const githubData = {
+      totalIssues: 2,
+      totalRepos: 0,
+      totalStars: 0,
+    };
+    // const githubData = await getGitHubMetrics(queries[0]);
+
+    // Update popularity with GitHub metrics
     const updatedPopularity = {
       ...metric?.popularity,
-      stackoverflowScore: calculateStackOverflowPopularity(stackOverflowData),
+      githubScore: calculateGitHubPopularity(githubData),
     };
 
-    // Update DynamoDB with StackOverflow data
+    // Update DynamoDB with GitHub data
     await updateItemInDynamoDB({
       table: TABLE_NAME.DB_TOOLS_METRICES,
       Key: {
@@ -158,14 +152,14 @@ const processUnprocessedDbTools = async (dbTools) => {
         date: getYesterdayDate,
       },
       UpdateExpression:
-        "SET #popularity = :popularity, #stackOverflowData = :stackOverflowData",
+        "SET #popularity = :popularity, #githubData = :githubData",
       ExpressionAttributeNames: {
         "#popularity": "popularity",
-        "#stackOverflowData": "stackOverflowData",
+        "#githubData": "githubData",
       },
       ExpressionAttributeValues: {
         ":popularity": updatedPopularity,
-        ":stackOverflowData": stackOverflowData,
+        ":githubData": githubData,
       },
       ConditionExpression:
         "attribute_exists(#popularity) OR attribute_not_exists(#popularity)",
@@ -174,7 +168,7 @@ const processUnprocessedDbTools = async (dbTools) => {
     // Add dbToolId to processedDbToolIds
     processedDbToolIds.push(dbToolId);
 
-    console.log(`Successfully updated stackOverflowData for name: ${name}`);
+    console.log(`Successfully updated GitHub data for: ${name}`);
   }
 
   return processedDbToolIds;
@@ -182,9 +176,9 @@ const processUnprocessedDbTools = async (dbTools) => {
 
 // Update tracking table in DynamoDB
 const updateTrackingTable = async (
-  mergedDbTools,
-  processedDbToolIds,
-  unprocessedDbTools
+  mergedDbTools, // Already processed DB Tools
+  processedDbToolIds, // Newly processed DB Tools
+  unprocessedDbTools // DB Tools that are yet to be processed
 ) => {
   // Merge newly processed DB Tools with already processed DB Tools
   const newMergedDbTools = [...mergedDbTools, ...processedDbToolIds];
@@ -197,7 +191,7 @@ const updateTrackingTable = async (
     table: TABLE_NAME.TRACKING_RESOURCES,
     Key: {
       date: getTodayDate,
-      resource_type: RESOURCE_TYPE.STACKOVERFLOW,
+      resource_type: RESOURCE_TYPE.GITHUB,
     },
     UpdateExpression:
       "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #table_name = :tableName, #status = :status",

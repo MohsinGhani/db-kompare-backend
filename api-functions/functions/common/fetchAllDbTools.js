@@ -1,7 +1,7 @@
 import { fetchAllItemByDynamodbIndex } from "../../helpers/dynamodb.js";
 import { DB_TOOL_STATUS, TABLE_NAME } from "../../helpers/constants.js";
 
-export const fetchAlldbToolsCategories = async () => {
+export const fetchAllDbTools = async () => {
   try {
     const params = {
       TableName: TABLE_NAME.DB_TOOLS,

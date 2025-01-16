@@ -109,16 +109,13 @@ const fetchTrackingData = async () => {
   return getItemByQuery({
     table: TABLE_NAME.TRACKING_RESOURCES,
     KeyConditionExpression: "#date = :date AND #resource_type = :resourceType",
-    FilterExpression: "#table_name = :tableName",
     ExpressionAttributeNames: {
       "#date": "date",
       "#resource_type": "resource_type",
-      "#table_name": "table_name",
     },
     ExpressionAttributeValues: {
       ":date": getTodayDate,
       ":resourceType": RESOURCE_TYPE.STACKOVERFLOW,
-      ":tableName": TABLE_NAME.DATABASES,
     },
   });
 };

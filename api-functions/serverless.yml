@@ -16,6 +16,7 @@ custom:
   trackingResourcesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TRACKING_RESOURCES_TABLE}
   dbToolCategoriesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOL_CATEGORIES_TABLE}
   dbToolsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_TABLE}
+  dbToolsMetricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_METRICES_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -40,6 +41,7 @@ provider:
   runtime: nodejs20.x
   region: eu-west-1
   stage: ${opt:stage, 'dev'}
+  versionFunctions: false
   profile: dbkompare
   environment:
     DATABASES_TABLE: db-kompare-databases-${self:provider.stage}
@@ -51,6 +53,7 @@ provider:
     TRACKING_RESOURCES_TABLE: db-kompare-tracking-resources-${self:provider.stage}
     DB_TOOL_CATEGORIES_TABLE: db-kompare-dbtools-categories-${self:provider.stage}
     DB_TOOLS_TABLE: db-kompare-dbtools-${self:provider.stage}
+    DB_TOOLS_METRICES_TABLE: db-kompare-dbtools-metrices-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -97,6 +100,8 @@ provider:
             - ${self:custom.blogsTableArn} # Permission for blogs table
             - ${self:custom.databaseRankingTableArn} # Permission for database rankings table
             - ${self:custom.dbToolCategoriesTableArn} # Permission for db tools categories table
+            - ${self:custom.dbToolsMetricesTableArn} # Permission for db tools metrices table
+            - ${self:custom.dbToolsTableArn} # Permission for db tools table
             - ${self:custom.usersTableArn} # Permission for users table
             - ${self:custom.savedBlogsTableArn} # Permission for saved Blogs table
             - ${self:custom.trackingResourcesTableArn} # Permission for tracking resorces table
@@ -282,6 +287,15 @@ functions:
       - http:
           path: /get-dbtools-by-category/{category_id}
           method: get
+          cors: true
+          private: true
+  
+  getDbToolsByIds:
+    handler: functions/dbtools/getDbToolsByIds.handler
+    events:
+      - http:
+          path: /get-dbtools-by-ids
+          method: post
           cors: true
           private: true
 

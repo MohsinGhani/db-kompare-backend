@@ -18,6 +18,7 @@ import {
   updateItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
 import { fetchGoogleData } from "../../services/googleService.js";
+import { fetchAllDbTools } from "../common/fetchAllDbTools.js";
 
 // Global rate limiter to control the number of concurrent requests
 const limiter = new Bottleneck({
@@ -28,54 +29,48 @@ const limiter = new Bottleneck({
 // Main handler function for the Lambda
 export const handler = async (event) => {
   try {
-    console.log("Fetching all databases (active and inactive)...");
-    const databases = await fetchAllDatabases();
+    console.log("Fetching all DB Tools (active and inactive)...");
+    const dbTools = await fetchAllDbTools();
 
-    if (!databases || databases.length === 0) {
-      console.log("No databases found.");
-      return sendResponse(404, "No databases found.");
+    if (!dbTools || dbTools.length === 0) {
+      console.log("No DB Tools found.");
+      return sendResponse(404, "No DB Tools found.");
     }
 
-    // We fetch the tracking data to determine which databases have already been processed
+    // We fetch the tracking data to determine which DB Tools have already been processed
     const trackingData = await fetchTrackingData();
 
     // Get the tracking item from the response
     const trackingItem = trackingData?.Items?.[0];
 
-    // Get the list of databases that have already been processed
-    const mergedDatabases = trackingItem?.merged_databases || [];
+    // Get the list of DB Tools that have already been processed
+    const mergedDbTools = trackingItem?.merged_db_tools || [];
 
     console.log("Tracking item:", trackingItem);
 
-    // Separate unprocessed and already processed databases
-    const {
-      unprocessedDatabases,
-      alreadyProcessedDatabases,
-      remainingDatabases,
-    } = categorizeDatabases(databases, mergedDatabases);
+    // Separate unprocessed and already processed DB Tools
+    const { unprocessedDbTools, alreadyProcessedDbTools, remainingDbTools } =
+      categorizeDbTools(dbTools, mergedDbTools);
 
-    console.log("Unprocessed databases:", unprocessedDatabases.length);
-    console.log(
-      "Already processed databases:",
-      alreadyProcessedDatabases.length
+    console.log("Unprocessed DB Tools:", unprocessedDbTools.length);
+    console.log("Already processed DB Tools:", alreadyProcessedDbTools.length);
+
+    // Process already processed DB Tools
+    await processAlreadyProcessedDbTools(alreadyProcessedDbTools);
+
+    // Process unprocessed DB Tools and collect their IDs
+    const processedDbToolIds = await processUnprocessedDbTools(
+      unprocessedDbTools
     );
 
-    // Process already processed databases
-    await processAlreadyProcessedDatabases(alreadyProcessedDatabases);
-
-    // Process unprocessed databases and collect their IDs
-    const processedDatabaseIds = await processUnprocessedDatabases(
-      unprocessedDatabases
-    );
-
-    // Process remaining databases with placeholder values
-    await processRemainingDatabases(unprocessedDatabases.slice(15));
+    // Process remaining DB Tools with placeholder values
+    await processRemainingDbTools(unprocessedDbTools.slice(15));
 
     // Update the tracking table with the current state
     await updateTrackingTable(
-      mergedDatabases, // Already processed databases
-      processedDatabaseIds, // Newly processed databases
-      unprocessedDatabases // Remaining unprocessed databases
+      mergedDbTools, // Already processed DB Tools
+      processedDbToolIds, // Newly processed DB Tools
+      unprocessedDbTools // Remaining unprocessed DB Tools
     );
 
     console.log("Tracking and ranking tables updated successfully.");
@@ -88,88 +83,70 @@ export const handler = async (event) => {
   }
 };
 
-// Fetch all active and inactive databases
-const fetchAllDatabases = async () => {
-  const activeDatabases = await fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE);
-  const inactiveDatabases = await fetchDatabasesByStatus(
-    DATABASE_STATUS.INACTIVE
-  );
-
-  return [...(activeDatabases || []), ...(inactiveDatabases || [])].sort(
-    (a, b) =>
-      a.status === DATABASE_STATUS.ACTIVE &&
-      b.status === DATABASE_STATUS.INACTIVE
-        ? -1
-        : 1
-  );
-};
-
-// Fetch databases based on their status
-const fetchDatabasesByStatus = async (status) => {
-  return fetchAllItemByDynamodbIndex({
-    TableName: TABLE_NAME.DATABASES,
-    IndexName: "byStatus",
-    KeyConditionExpression: "#status = :status",
-    ExpressionAttributeValues: { ":status": status },
-    ExpressionAttributeNames: { "#status": "status" },
-  });
-};
-
 // Fetch tracking data from DynamoDB
 const fetchTrackingData = async () => {
   return getItemByQuery({
     table: TABLE_NAME.TRACKING_RESOURCES,
     KeyConditionExpression: "#date = :date AND #resource_type = :resourceType",
-    FilterExpression: "#table_name = :tableName",
     ExpressionAttributeNames: {
       "#date": "date",
       "#resource_type": "resource_type",
-      "#table_name": "table_name",
     },
     ExpressionAttributeValues: {
       ":date": getYesterdayDate,
       ":resourceType": RESOURCE_TYPE.GOOGLE,
-      ":tableName": TABLE_NAME.DATABASES,
     },
   });
 };
 
-// Categorize databases into unprocessed, already processed, and remaining groups
-const categorizeDatabases = (databases, mergedDatabases) => {
-  const unprocessedDatabases = databases.filter(
-    (db) => !mergedDatabases.includes(db.id)
+// Categorize DB Tools into unprocessed, already processed, and remaining groups
+const categorizeDbTools = (dbTools, mergedDbTools) => {
+  const unprocessedDbTools = dbTools.filter(
+    (tool) => !mergedDbTools.includes(tool.id)
   );
-  const alreadyProcessedDatabases = databases.filter((db) =>
-    mergedDatabases.includes(db.id)
+  const alreadyProcessedDbTools = dbTools.filter((tool) =>
+    mergedDbTools.includes(tool.id)
   );
-  const remainingDatabases = databases.slice(
-    unprocessedDatabases.length + alreadyProcessedDatabases.length
+  const remainingDbTools = dbTools.slice(
+    unprocessedDbTools.length + alreadyProcessedDbTools.length
   );
 
   return {
-    unprocessedDatabases,
-    alreadyProcessedDatabases,
-    remainingDatabases,
+    unprocessedDbTools,
+    alreadyProcessedDbTools,
+    remainingDbTools,
   };
 };
 
-// Process databases that have already been processed
-const processAlreadyProcessedDatabases = async (databases) => {
+// Process DB Tools that have already been processed
+const processAlreadyProcessedDbTools = async (dbTools) => {
   return Promise.all(
-    databases.map(async (db) => {
-      const { id: databaseId, name } = db;
+    dbTools.map(async (tool) => {
+      const { id: dbToolId, tool_name: name } = tool;
 
       // Fetch existing metrics from DynamoDB
       const metricsData = await getItemByQuery({
-        table: TABLE_NAME.METRICES,
-        KeyConditionExpression: "#database_id = :database_id and #date = :date",
+        table: TABLE_NAME.DB_TOOLS_METRICES,
+        KeyConditionExpression: "#dbtool_id = :dbtool_id and #date = :date",
         ExpressionAttributeNames: {
-          "#database_id": "database_id",
+          "#dbtool_id": "dbtool_id",
           "#date": "date",
         },
         ExpressionAttributeValues: {
-          ":database_id": databaseId,
+          ":dbtool_id": dbToolId,
           ":date": getTwoDaysAgoDate,
+        },
+      });
+      const yesterdayMetricsData = await getItemByQuery({
+        table: TABLE_NAME.DB_TOOLS_METRICES,
+        KeyConditionExpression: "#dbtool_id = :dbtool_id and #date = :date",
+        ExpressionAttributeNames: {
+          "#dbtool_id": "dbtool_id",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":dbtool_id": dbToolId,
+          ":date": getYesterdayDate,
         },
       });
 
@@ -177,15 +154,15 @@ const processAlreadyProcessedDatabases = async (databases) => {
 
       // Calculate updated popularity metrics
       const updatedPopularity = {
-        ...metric?.popularity,
+        ...yesterdayMetricsData?.popularity,
         googleScore: calculateGooglePopularity(metric?.googleData || []),
       };
 
       // Update DynamoDB with the updated popularity
       await updateItemInDynamoDB({
-        table: TABLE_NAME.METRICES,
+        table: TABLE_NAME.DB_TOOLS_METRICES,
         Key: {
-          database_id: databaseId,
+          dbtool_id: dbToolId,
           date: getYesterdayDate,
         },
         UpdateExpression:
@@ -202,30 +179,30 @@ const processAlreadyProcessedDatabases = async (databases) => {
         },
       });
 
-      console.log(`Already processed database: ${name}`);
+      console.log(`Already processed DB Tool: ${name}`);
     })
   );
 };
 
-// Process unprocessed databases
-const processUnprocessedDatabases = async (databases) => {
-  const databasesToProcess = databases.slice(0, 15);
-  const processedDatabaseIds = [];
+// Process unprocessed DB Tools
+const processUnprocessedDbTools = async (dbTools) => {
+  const dbToolsToProcess = dbTools.slice(0, 15);
+  const processedDbToolIds = [];
 
-  for (const db of databasesToProcess) {
-    const { id: databaseId, queries: db_queries, name } = db;
-    const queries = db_queries || generateQueries(name);
+  for (const tool of dbToolsToProcess) {
+    const { id: dbToolId, queries: toolQueries, tool_name: name } = tool;
+    const queries = toolQueries || generateQueries(name);
 
     // Fetch existing metrics
     const metricsData = await getItemByQuery({
-      table: TABLE_NAME.METRICES,
-      KeyConditionExpression: "#database_id = :database_id and #date = :date",
+      table: TABLE_NAME.DB_TOOLS_METRICES,
+      KeyConditionExpression: "#dbtool_id = :dbtool_id and #date = :date",
       ExpressionAttributeNames: {
-        "#database_id": "database_id",
+        "#dbtool_id": "dbtool_id",
         "#date": "date",
       },
       ExpressionAttributeValues: {
-        ":database_id": databaseId,
+        ":dbtool_id": dbToolId,
         ":date": getYesterdayDate,
       },
     });
@@ -233,7 +210,33 @@ const processUnprocessedDatabases = async (databases) => {
     const metric = metricsData?.Items?.[0];
 
     // Fetch Google data for the queries
-    const googleData = await fetchGoogleDataForQueries(queries);
+    const googleData = [
+      {
+        query: "Ehcache",
+        totalResultsWithoutDate: 310000,
+      },
+      {
+        query: "Ehcache",
+        totalResultsWithDate: 36,
+      },
+      {
+        query: "Ehcache issues",
+        totalResults: 8,
+      },
+      {
+        query: "Ehcache crash",
+        totalResults: 3,
+      },
+      {
+        query: "Ehcache slow",
+        totalResults: 3,
+      },
+      {
+        query: "Ehcache stuck",
+        totalResults: 0,
+      },
+    ];
+    // const googleData = await fetchGoogleDataForQueries(queries);
 
     // Calculate updated popularity metrics
     const updatedPopularity = {
@@ -243,9 +246,9 @@ const processUnprocessedDatabases = async (databases) => {
 
     // Update DynamoDB with the new metrics
     await updateItemInDynamoDB({
-      table: TABLE_NAME.METRICES,
+      table: TABLE_NAME.DB_TOOLS_METRICES,
       Key: {
-        database_id: databaseId,
+        dbtool_id: dbToolId,
         date: getYesterdayDate,
       },
       UpdateExpression:
@@ -262,11 +265,11 @@ const processUnprocessedDatabases = async (databases) => {
       },
     });
 
-    processedDatabaseIds.push(databaseId);
-    console.log(`Successfully updated Google data for database: ${name}`);
+    processedDbToolIds.push(dbToolId);
+    console.log(`Successfully updated Google data for DB Tool: ${name}`);
   }
 
-  return processedDatabaseIds;
+  return processedDbToolIds;
 };
 
 // Fetch Google data for all queries
@@ -304,26 +307,26 @@ const fetchGoogleDataForQueries = async (queries) => {
   return googleData;
 };
 
-// Process remaining unprocessed databases with placeholder values
-const processRemainingDatabases = async (databases) => {
+// Process remaining unprocessed DB Tools with placeholder values
+const processRemainingDbTools = async (dbTools) => {
   console.log(
-    "Starting to process remaining unprocessed databases with placeholder values..."
+    "Starting to process remaining unprocessed DB Tools with placeholder values..."
   );
   return Promise.all(
-    databases.map(async (db) => {
-      const { id: databaseId, name } = db;
-      const queries = db.queries || generateQueries(name);
+    dbTools.map(async (tool) => {
+      const { id: dbToolId, tool_name: name } = tool;
+      const queries = tool.queries || generateQueries(name);
 
       // Fetch existing metrics
       const metricsData = await getItemByQuery({
-        table: TABLE_NAME.METRICES,
-        KeyConditionExpression: "#database_id = :database_id and #date = :date",
+        table: TABLE_NAME.DB_TOOLS_METRICES,
+        KeyConditionExpression: "#dbtool_id = :dbtool_id and #date = :date",
         ExpressionAttributeNames: {
-          "#database_id": "database_id",
+          "#dbtool_id": "dbtool_id",
           "#date": "date",
         },
         ExpressionAttributeValues: {
-          ":database_id": databaseId,
+          ":dbtool_id": dbToolId,
           ":date": getYesterdayDate,
         },
       });
@@ -344,9 +347,9 @@ const processRemainingDatabases = async (databases) => {
 
       // Update DynamoDB with placeholder data
       await updateItemInDynamoDB({
-        table: TABLE_NAME.METRICES,
+        table: TABLE_NAME.DB_TOOLS_METRICES,
         Key: {
-          database_id: databaseId,
+          dbtool_id: dbToolId,
           date: getYesterdayDate,
         },
         UpdateExpression:
@@ -363,23 +366,22 @@ const processRemainingDatabases = async (databases) => {
         },
       });
 
-      console.log(`Updated unprocessed database: ${name}`);
+      console.log(`Updated unprocessed DB Tool: ${name}`);
     })
   );
 };
 
 // Update the tracking table in DynamoDB
 const updateTrackingTable = async (
-  mergedDatabases, // Already processed databases
-  processedDatabaseIds, // Newly processed databases
-  unprocessedDatabases // Remaining unprocessed databases
+  mergedDbTools, // Already processed DB Tools
+  processedDbToolIds, // Newly processed DB Tools
+  unprocessedDbTools // Remaining unprocessed DB Tools
 ) => {
-  // Merge newly processed databases with already processed databases
-  const newMergedDatabases = [...mergedDatabases, ...processedDatabaseIds];
+  // Merge newly processed DB Tools with already processed DB Tools
+  const newMergedDbTools = [...mergedDbTools, ...processedDbToolIds];
 
   // Determine the status of the tracking
-  const status =
-    unprocessedDatabases?.length === 0 ? "COMPLETED" : "INPROGRESS";
+  const status = unprocessedDbTools?.length === 0 ? "COMPLETED" : "INPROGRESS";
 
   // Update the tracking table with the new state
   return updateItemInDynamoDB({
@@ -389,17 +391,17 @@ const updateTrackingTable = async (
       resource_type: RESOURCE_TYPE.GOOGLE,
     },
     UpdateExpression:
-      "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases, #table_name = :tableName, #status = :status",
+      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #table_name = :tableName, #status = :status",
     ExpressionAttributeNames: {
-      "#processed_databases": "processed_databases",
-      "#merged_databases": "merged_databases",
+      "#processed_db_tools": "processed_db_tools",
+      "#merged_db_tools": "merged_db_tools",
       "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
-      ":processedDatabases": processedDatabaseIds, // Newly processed databases
-      ":mergedDatabases": newMergedDatabases, // Already processed databases
-      ":tableName": TABLE_NAME.DATABASES, // It shows that this tracking is for databases
+      ":processedDbTools": processedDbToolIds, // Newly processed DB Tools
+      ":mergedDbTools": newMergedDbTools, // Already processed DB Tools
+      ":tableName": TABLE_NAME.DB_TOOLS, // It shows that this tracking is for DB Tools
       ":status": status, // Status of the tracking
     },
   });

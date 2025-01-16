@@ -4,6 +4,7 @@ import {
   fetchAllItemByDynamodbIndex,
 } from "../../helpers/dynamodb.js";
 import { sendResponse } from "../../helpers/helpers.js";
+import { fetchDbToolCategoryDetail } from "../common/fetchDbToolCategoryDetail.js";
 
 export const handler = async (event) => {
   try {
@@ -44,7 +45,7 @@ export const handler = async (event) => {
 
     // Define the base query parameters
     let queryParams = {
-      TableName: TABLE_NAME.METRICES,
+      TableName: TABLE_NAME.DB_TOOLS_METRICES,
       IndexName: "byStatusAndDate",
       KeyConditionExpression: "#includeMe = :includeMeVal",
       ExpressionAttributeNames: {
@@ -68,62 +69,56 @@ export const handler = async (event) => {
     const items = await fetchAllItemByDynamodbIndex(queryParams);
     const transformedData = await transformData(items);
 
-    return sendResponse(200, "Fetch metrices successfully", transformedData);
+    return sendResponse(200, "Fetch metrics successfully", transformedData);
   } catch (error) {
-    console.error("Error fetching metrices:", error);
-    return sendResponse(500, "Failed to fetch metrices", {
+    console.error("Error fetching metrics:", error);
+    return sendResponse(500, "Failed to fetch metrics", {
       error: error.message,
     });
   }
 };
 
-// Get database name
-const getDatabaseNameById = async (databaseId) => {
-  const key = {
-    id: databaseId,
-  };
-  try {
-    const result = await getItem(TABLE_NAME.DATABASES, key);
-    if (result.Item) {
-      return result.Item.name;
-    }
-    return "Unknown"; // Fallback if the database name is not found
-  } catch (error) {
-    console.error(`Error fetching database name for ID ${databaseId}:`, error);
-    throw error;
-  }
-};
-
 const transformData = async (items) => {
-  // Group items by `databaseId`
+  // Group items by `dbToolId`
   const groupedData = items.reduce((acc, item) => {
-    const { database_id: databaseId, date, popularity, ui_popularity } = item;
+    const {
+      dbtool_id: dbToolId,
+      date,
+      popularity,
+      ui_popularity,
+      category_id,
+    } = item;
 
-    // Ensure the database entry exists in the accumulator
-    if (!acc[databaseId]) {
-      acc[databaseId] = {
-        databaseId,
-        databaseName: "Fetching...", // Placeholder for the database name
+    // Ensure the DB Tool entry exists in the accumulator
+    if (!acc[dbToolId]) {
+      acc[dbToolId] = {
+        dbToolId,
+        categoryDetail: "Fetching...", // Placeholder for the category detail
         metrics: [],
       };
     }
 
     // Add metrics for the current date
-    acc[databaseId].metrics.push({
+    acc[dbToolId].metrics.push({
       date,
       popularity,
       ui_popularity,
     });
 
+    // Add category_id for fetching category detail later
+    acc[dbToolId].categoryId = category_id;
+
     return acc;
   }, {});
 
-  // Fetch database names for each unique databaseId
-  const databaseIds = Object.keys(groupedData);
+  // Fetch category details for each unique dbToolId
+  const dbToolIds = Object.keys(groupedData);
   await Promise.all(
-    databaseIds.map(async (databaseId) => {
-      const databaseName = await getDatabaseNameById(databaseId);
-      groupedData[databaseId].databaseName = databaseName;
+    dbToolIds.map(async (dbToolId) => {
+      const categoryDetail = await fetchDbToolCategoryDetail(
+        groupedData[dbToolId].categoryId
+      );
+      groupedData[dbToolId].categoryDetail = categoryDetail;
     })
   );
 

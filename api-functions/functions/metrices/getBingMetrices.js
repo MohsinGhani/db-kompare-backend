@@ -261,16 +261,13 @@ const fetchTrackingData = async () => {
   return getItemByQuery({
     table: TABLE_NAME.TRACKING_RESOURCES,
     KeyConditionExpression: "#date = :date AND #resource_type = :resourceType",
-    FilterExpression: "#table_name = :tableName",
     ExpressionAttributeNames: {
       "#date": "date",
       "#resource_type": "resource_type",
-      "#table_name": "table_name",
     },
     ExpressionAttributeValues: {
       ":date": getYesterdayDate,
       ":resourceType": RESOURCE_TYPE.BING,
-      ":tableName": TABLE_NAME.DATABASES,
     },
   });
 };
@@ -305,10 +302,23 @@ const processAlreadyProcessedDatabases = async (databases) => {
         },
       });
 
+      const yesterdayMetricsData = await getItemByQuery({
+        table: TABLE_NAME.METRICES,
+        KeyConditionExpression: "#database_id = :database_id and #date = :date",
+        ExpressionAttributeNames: {
+          "#database_id": "database_id",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":database_id": databaseId,
+          ":date": getYesterdayDate,
+        },
+      });
+
       const metric = metricsData?.Items?.[0];
 
       const updatedPopularity = {
-        ...metric?.popularity,
+        ...yesterdayMetricsData?.popularity,
         bingScore: calculateBingPopularity(metric?.bingData || []),
       };
 
