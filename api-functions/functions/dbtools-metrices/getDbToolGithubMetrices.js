@@ -131,12 +131,8 @@ const processUnprocessedDbTools = async (dbTools) => {
     }
 
     // Fetch GitHub metrics
-    const githubData = {
-      totalIssues: 2,
-      totalRepos: 0,
-      totalStars: 0,
-    };
-    // const githubData = await getGitHubMetrics(queries[0]);
+
+    const githubData = await getGitHubMetrics(queries[0]);
 
     // Update popularity with GitHub metrics
     const updatedPopularity = {
@@ -194,17 +190,15 @@ const updateTrackingTable = async (
       resource_type: RESOURCE_TYPE.GITHUB,
     },
     UpdateExpression:
-      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #table_name = :tableName, #status = :status",
+      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #status = :status",
     ExpressionAttributeNames: {
       "#processed_db_tools": "processed_db_tools",
       "#merged_db_tools": "merged_db_tools",
-      "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
       ":processedDbTools": processedDbToolIds, // Newly processed DB Tools
       ":mergedDbTools": newMergedDbTools, // Already processed DB Tools
-      ":tableName": TABLE_NAME.DB_TOOLS, // It shows that this tracking is for DB Tools
       ":status": status, // Status of the tracking
     },
   });

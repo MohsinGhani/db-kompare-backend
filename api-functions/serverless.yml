@@ -17,6 +17,7 @@ custom:
   dbToolCategoriesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOL_CATEGORIES_TABLE}
   dbToolsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_TABLE}
   dbToolsMetricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_METRICES_TABLE}
+  dbToolsRankingsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_RANKINGS_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -54,6 +55,7 @@ provider:
     DB_TOOL_CATEGORIES_TABLE: db-kompare-dbtools-categories-${self:provider.stage}
     DB_TOOLS_TABLE: db-kompare-dbtools-${self:provider.stage}
     DB_TOOLS_METRICES_TABLE: db-kompare-dbtools-metrices-${self:provider.stage}
+    DB_TOOLS_RANKINGS_TABLE: db-kompare-dbtools-rankings-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -92,7 +94,9 @@ provider:
             - ${self:custom.blogsTableArn}/index/byIsPublished
             - ${self:custom.usersTableArn}/index/byEmail
             - ${self:custom.metricesTableArn}/index/byStatusAndDate
+            - ${self:custom.dbToolsMetricesTableArn}/index/byStatusAndDate
             - ${self:custom.databaseRankingTableArn}/index/byStatusAndDate
+            - ${self:custom.dbToolsRankingsTableArn}/index/byStatusAndDate
             - ${self:custom.savedBlogsTableArn}/index/BlogIdIndex
             - ${self:custom.trackingResourcesTableArn}/index/DateTableNameIndex
             - ${self:custom.databasesTableArn} # Permission for databases table
@@ -105,6 +109,7 @@ provider:
             - ${self:custom.usersTableArn} # Permission for users table
             - ${self:custom.savedBlogsTableArn} # Permission for saved Blogs table
             - ${self:custom.trackingResourcesTableArn} # Permission for tracking resorces table
+            - ${self:custom.dbToolsRankingsTableArn} # Permission for tracking resorces table
           # Cognito Permissions for AdminAddUserToGroup
         - Effect: Allow
           Action:
@@ -194,6 +199,14 @@ functions:
     events:
       - http:
           path: /get-rankings
+          method: post
+          private: true
+          cors: true
+  getDbToolRanking:
+    handler: functions/rankings/getDbToolRanking.handler
+    events:
+      - http:
+          path: /get-dbtool-rankings
           method: post
           private: true
           cors: true
@@ -335,6 +348,15 @@ functions:
           method: post
           cors: true
           private: true
+  
+  getDbToolMetrices:
+    handler: functions/dbtools-metrices/getDbToolMetrices.handler
+    events:
+      - http:
+          path: /get-dbtools-metrices
+          method: post
+          cors: true
+          private: true
 
   getDatabasesCount:
     handler: functions/databases/getDatabasesCount.handler
@@ -345,6 +367,74 @@ functions:
           cors: true
           private: true
 
+  
+  # DB TOOL GITHUB METRICES SCHEDULE
+  getDbToolGithubMetrices:
+    handler: functions/dbtools-metrices/getDbToolGithubMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(0 6 * * ? *) # First job at 6:00 AM UTC
+      - schedule:
+          rate: cron(5 6 * * ? *) # Second job at 6:05 AM UTC
+      - schedule:
+          rate: cron(10 6 * * ? *) # Third job at 6:10 AM UTC
+      - schedule:
+          rate: cron(15 6 * * ? *) # Fourth job at 6:15 AM UTC
+      - schedule:
+          rate: cron(20 6 * * ? *) # Fifth job at 6:20 AM UTC
+      - schedule:
+          rate: cron(25 6 * * ? *) # Sixth job at 6:25 AM UTC
+      - schedule:
+          rate: cron(30 6 * * ? *) # Sixth job at 6:30 AM UTC
+
+  # DB TOOL STACKOVERFLOW METRICES SCHEDULE
+  getDbToolStackoverflowMetrices:
+    handler: functions/dbtools-metrices/getDbToolStackoverflowMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(0 6 * * ? *) # First job at 6:00 AM UTC
+      - schedule:
+          rate: cron(5 6 * * ? *) # Second job at 6:05 AM UTC
+      - schedule:
+          rate: cron(10 6 * * ? *) # Third job at 6:10 AM UTC
+      - schedule:
+          rate: cron(15 6 * * ? *) # Fourth job at 6:15 AM UTC
+      - schedule:
+          rate: cron(20 6 * * ? *) # Fifth job at 6:20 AM UTC
+
+  # DB TOOL GOOGLE METRICES SCHEDULE
+  getDbToolGoogleMetrices:
+    handler: functions/dbtools-metrices/getDbToolGoogleMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(30 6 * * ? *) # Runs daily at 6:30 AM UTC
+
+  # DB TOOL BING METRICES SCHEDULE
+  getDbToolBingMetrices:
+    handler: functions/dbtools-metrices/getDbToolBingMetrices.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(40 6 * * ? *) # Runs daily at 6:40 AM UTC
+
+  # DB TOOL POPULARITY UPDATE SCHEDULE
+  updateDbToolPopularity:
+    handler: functions/dbtools-metrices/updateDbToolPopularity.handler
+    events:
+      - schedule:
+          rate: cron(45 6 * * ? *) # Runs daily at 6:45 AM UTC
+
+  # DB TOOL RANKING UPDATE SCHEDULE
+  addDbToolRanking:
+    handler: functions/rankings/addDbToolRanking.handler
+    events:
+      - schedule:
+          rate: cron(50 6 * * ? *) # Runs daily at 6:50 AM UTC
+
+  # DATABASE GITHUB METRICES SCHEDULE
   getGithubMetrices:
     handler: functions/metrices/getGithubMetrices.handler
     timeout: 300
@@ -370,6 +460,7 @@ functions:
       - schedule:
           rate: cron(45 5 * * ? *) # Tenth job at 5:45 AM UTC
 
+  # DATABASE STACKOVERFLOW METRICES SCHEDULE
   getStackoverflowMetrices:
     handler: functions/metrices/getStackoverflowMetrices.handler
     timeout: 300
@@ -386,32 +477,37 @@ functions:
           rate: cron(20 5 * * ? *) # Fifth job at 5:20 AM UTC
       - schedule:
           rate: cron(25 5 * * ? *) # Sixth job at 5:25 AM UTC
-
+  
+  # DATABASE GOOGLE METRICES SCHEDULE
   getGoogleMetrices:
     handler: functions/metrices/getGoogleMetrices.handler
     timeout: 300
     events:
       - schedule:
-          rate: cron(50 5 * * ? *) # Runs daily at 5:50 PM UTC
-
+          rate: cron(50 5 * * ? *) # Runs daily at 5:50 AM UTC
+  
+  # DATABASE BING METRICES SCHEDULE
   getBingMetrices:
     handler: functions/metrices/getBingMetrices.handler
     timeout: 300
     events:
       - schedule:
-          rate: cron(0 6 * * ? *) # Runs daily at 6:00 PM UTC
-
+          rate: cron(0 6 * * ? *) # Runs daily at 6:00 AM UTC
+  
+  
+  # DATABASE POPULARITY UPDATE SCHEDULE
   updatePopularity:
     handler: functions/metrices/updatePopularity.handler
     events:
       - schedule:
-          rate: cron(5 6 * * ? *) # Runs daily at 6:05 PM UTC
+          rate: cron(5 6 * * ? *) # Runs daily at 6:05 AM UTC
 
+  # DATABASE RANKING UPDATE SCHEDULE
   addRanking:
     handler: functions/rankings/addRanking.handler
     events:
       - schedule:
-          rate: cron(10 6 * * ? *) # Runs daily at 6:10 PM UTC
+          rate: cron(10 6 * * ? *) # Runs daily at 6:10 AM UTC
 
 resources:
   Resources:

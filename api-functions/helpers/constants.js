@@ -10,6 +10,7 @@ export const TABLE_NAME = {
   DB_TOOL_CATEGORIES: process.env.DB_TOOL_CATEGORIES_TABLE,
   DB_TOOLS: process.env.DB_TOOLS_TABLE,
   DB_TOOLS_METRICES: process.env.DB_TOOLS_METRICES_TABLE,
+  DB_TOOLS_RANKINGS: process.env.DB_TOOLS_RANKINGS_TABLE,
 };
 
 export const STATUS_CODE = {

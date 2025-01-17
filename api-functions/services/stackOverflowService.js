@@ -99,7 +99,7 @@ async function getStackOverflowQuestionsCountAllTime(databaseName) {
     const response = await withRetry(() =>
       axios.get(`${STACKEXCHANGE_API_URL}/questions`, { params })
     );
-    return response.data.total || 10000;
+    return response.data.total || 10000; // if value is not available, return 10000
   } catch (error) {
     console.error(
       `Error fetching all-time Stack Overflow questions count for ${databaseName}:`,

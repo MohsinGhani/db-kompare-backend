@@ -7,14 +7,9 @@ import {
   getTwoDaysAgoDate,
   generateQueries,
 } from "../../helpers/helpers.js";
-import {
-  TABLE_NAME,
-  DATABASE_STATUS,
-  RESOURCE_TYPE,
-} from "../../helpers/constants.js";
+import { TABLE_NAME, RESOURCE_TYPE } from "../../helpers/constants.js";
 import {
   getItemByQuery,
-  fetchAllItemByDynamodbIndex,
   updateItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
 import { fetchGoogleData } from "../../services/googleService.js";
@@ -37,43 +32,85 @@ export const handler = async (event) => {
       return sendResponse(404, "No DB Tools found.");
     }
 
-    // We fetch the tracking data to determine which DB Tools have already been processed
+    // Fetch tracking data to determine processed DB Tools
     const trackingData = await fetchTrackingData();
-
-    // Get the tracking item from the response
     const trackingItem = trackingData?.Items?.[0];
-
-    // Get the list of DB Tools that have already been processed
+    const processed_databases = trackingItem?.processed_databases || [];
+    const processed_db_tools = trackingItem?.processed_db_tools || [];
     const mergedDbTools = trackingItem?.merged_db_tools || [];
 
     console.log("Tracking item:", trackingItem);
 
-    // Separate unprocessed and already processed DB Tools
-    const { unprocessedDbTools, alreadyProcessedDbTools, remainingDbTools } =
-      categorizeDbTools(dbTools, mergedDbTools);
+    if (
+      processed_db_tools.length === 0 &&
+      mergedDbTools.length === dbTools.length
+    ) {
+      // No DB Tools are processed yet
+      console.log("No DB Tools are processed yet...");
 
-    console.log("Unprocessed DB Tools:", unprocessedDbTools.length);
-    console.log("Already processed DB Tools:", alreadyProcessedDbTools.length);
+      await updateItemInDynamoDB({
+        table: TABLE_NAME.TRACKING_RESOURCES,
+        Key: {
+          date: getTodayDate,
+          resource_type: RESOURCE_TYPE.GOOGLE,
+        },
+        UpdateExpression:
+          "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases",
+        ExpressionAttributeNames: {
+          "#processed_databases": "processed_databases",
+          "#merged_databases": "merged_databases",
+        },
+        ExpressionAttributeValues: {
+          ":processedDatabases": [],
+          ":mergedDatabases": [],
+        },
+      });
+    }
 
-    // Process already processed DB Tools
-    await processAlreadyProcessedDbTools(alreadyProcessedDbTools);
+    if (processed_databases.length !== 0) {
+      // Databases are remaining to process
+      console.log("Databases are remaining to process...");
 
-    // Process unprocessed DB Tools and collect their IDs
-    const processedDbToolIds = await processUnprocessedDbTools(
-      unprocessedDbTools
-    );
+      await processRemainingDbTools(dbTools); // Handle remaining DB Tools
+      await updateTrackingTable(
+        [], // Already processed DB Tools
+        [], // Newly processed DB Tools
+        dbTools // Remaining unprocessed DB Tools
+      );
+    } else {
+      // Handle the remaining case
+      console.log("No databases remaining. Processing remaining tasks...");
 
-    // Process remaining DB Tools with placeholder values
-    await processRemainingDbTools(unprocessedDbTools.slice(15));
+      const { unprocessedDbTools, alreadyProcessedDbTools, remainingDbTools } =
+        categorizeDbTools(dbTools, mergedDbTools);
 
-    // Update the tracking table with the current state
-    await updateTrackingTable(
-      mergedDbTools, // Already processed DB Tools
-      processedDbToolIds, // Newly processed DB Tools
-      unprocessedDbTools // Remaining unprocessed DB Tools
-    );
+      console.log("Unprocessed DB Tools:", unprocessedDbTools.length);
+      console.log(
+        "Already processed DB Tools:",
+        alreadyProcessedDbTools.length
+      );
 
-    console.log("Tracking and ranking tables updated successfully.");
+      // Process already processed DB Tools
+      await processAlreadyProcessedDbTools(alreadyProcessedDbTools);
+
+      // Process unprocessed DB Tools and collect their IDs
+      const processedDbToolIds = await processUnprocessedDbTools(
+        unprocessedDbTools
+      );
+
+      // Process remaining DB Tools with placeholder values
+      await processRemainingDbTools(unprocessedDbTools.slice(15));
+
+      // Update the tracking table with the current state
+      await updateTrackingTable(
+        mergedDbTools, // Already processed DB Tools
+        processedDbToolIds, // Newly processed DB Tools
+        unprocessedDbTools // Remaining unprocessed DB Tools
+      );
+
+      console.log("Tracking and ranking tables updated successfully.");
+    }
+
     return sendResponse(200, "Google data updated successfully.");
   } catch (error) {
     console.error("Error processing Google metrics:", error);
@@ -391,17 +428,15 @@ const updateTrackingTable = async (
       resource_type: RESOURCE_TYPE.GOOGLE,
     },
     UpdateExpression:
-      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #table_name = :tableName, #status = :status",
+      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools,  #status = :status",
     ExpressionAttributeNames: {
       "#processed_db_tools": "processed_db_tools",
       "#merged_db_tools": "merged_db_tools",
-      "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
       ":processedDbTools": processedDbToolIds, // Newly processed DB Tools
       ":mergedDbTools": newMergedDbTools, // Already processed DB Tools
-      ":tableName": TABLE_NAME.DB_TOOLS, // It shows that this tracking is for DB Tools
       ":status": status, // Status of the tracking
     },
   });

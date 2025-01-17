@@ -15,6 +15,7 @@ import {
   updateItemInDynamoDB,
 } from "../../helpers/dynamodb.js";
 import { getStackOverflowMetrics } from "../../services/stackOverflowService.js";
+import { fetchAllDbTools } from "../common/fetchAllDbTools.js";
 
 export const handler = async (event) => {
   try {
@@ -136,12 +137,7 @@ const processUnprocessedDbTools = async (dbTools) => {
     const metric = metricsData?.Items?.[0];
 
     // Fetch StackOverflow metrics
-    const stackOverflowData = {
-      totalQuestions: 0,
-      totalQuestionsAllTime: 2379,
-      totalViewCount: 0,
-    };
-    // const stackOverflowData = await getStackOverflowMetrics(stack_overflow_tag);
+    const stackOverflowData = await getStackOverflowMetrics(stack_overflow_tag);
 
     // Update popularity with StackOverflow metrics
     const updatedPopularity = {
@@ -199,17 +195,15 @@ const updateTrackingTable = async (
       resource_type: RESOURCE_TYPE.STACKOVERFLOW,
     },
     UpdateExpression:
-      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #table_name = :tableName, #status = :status",
+      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #status = :status",
     ExpressionAttributeNames: {
       "#processed_db_tools": "processed_db_tools",
       "#merged_db_tools": "merged_db_tools",
-      "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
       ":processedDbTools": processedDbToolIds, // Newly processed DB Tools
       ":mergedDbTools": newMergedDbTools, // Already processed DB Tools
-      ":tableName": TABLE_NAME.DB_TOOLS, // It shows that this tracking is for DB Tools
       ":status": status, // Status of the tracking
     },
   });

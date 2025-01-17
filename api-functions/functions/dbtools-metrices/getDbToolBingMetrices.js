@@ -26,44 +26,85 @@ export const handler = async (event) => {
       return sendResponse(404, "No DB Tools found for Bing.");
     }
 
-    // Fetch tracking data
+    // Fetch tracking data to determine processed DB Tools
     const trackingData = await fetchTrackingData();
-
     const trackingItem = trackingData?.Items?.[0];
-
-    // Get the list of DB Tools that have already been processed
+    const processed_databases = trackingItem?.processed_databases || [];
+    const processed_db_tools = trackingItem?.processed_db_tools || [];
     const mergedDbTools = trackingItem?.merged_db_tools || [];
 
     console.log("Tracking item:", trackingItem);
 
-    // Categorize DB Tools into unprocessed and already processed
-    const { unprocessedDbTools, alreadyProcessedDbTools } = categorizeDbTools(
-      dbTools,
-      mergedDbTools
-    );
+    // Check if all DB Tools are processed then reset the tracking table for databases to process again
+    if (
+      processed_db_tools.length === 0 &&
+      mergedDbTools.length === dbTools.length
+    ) {
+      // No DB Tools are processed yet
+      console.log("No DB Tools are processed yet...");
 
-    console.log("Unprocessed DB Tools:", unprocessedDbTools.length);
-    console.log("Already processed DB Tools:", alreadyProcessedDbTools.length);
+      await updateItemInDynamoDB({
+        table: TABLE_NAME.TRACKING_RESOURCES,
+        Key: {
+          date: getTodayDate,
+          resource_type: RESOURCE_TYPE.BING,
+        },
+        UpdateExpression:
+          "SET #processed_databases = :processedDatabases, #merged_databases = :mergedDatabases",
+        ExpressionAttributeNames: {
+          "#processed_databases": "processed_databases",
+          "#merged_databases": "merged_databases",
+        },
+        ExpressionAttributeValues: {
+          ":processedDatabases": [],
+          ":mergedDatabases": [],
+        },
+      });
+    }
 
-    // Process already processed DB Tools
-    await processAlreadyProcessedDbTools(alreadyProcessedDbTools);
+    if (processed_databases.length !== 0) {
+      // Databases are remaining to process
+      console.log("Databases are remaining to process...");
 
-    // Process unprocessed DB Tools in batches
-    const processedDbToolIds = await processUnprocessedDbTools(
-      unprocessedDbTools
-    );
+      await processRemainingDbTools(dbTools); // Handle remaining DB Tools
+      await updateTrackingTable(
+        [], // Already processed DB Tools
+        [], // Newly processed DB Tools
+        dbTools // Remaining unprocessed DB Tools
+      );
+    } else {
+      // Categorize DB Tools into unprocessed and already processed
+      const { unprocessedDbTools, alreadyProcessedDbTools } = categorizeDbTools(
+        dbTools,
+        mergedDbTools
+      );
 
-    // Process remaining DB Tools with placeholder values
-    await processRemainingDbTools(unprocessedDbTools.slice(15));
+      console.log("Unprocessed DB Tools:", unprocessedDbTools.length);
+      console.log(
+        "Already processed DB Tools:",
+        alreadyProcessedDbTools.length
+      );
 
-    // Update the tracking table with the new state
-    await updateTrackingTable(
-      mergedDbTools, // Already processed DB Tools
-      processedDbToolIds, // Newly processed DB Tools
-      unprocessedDbTools // Remaining unprocessed DB Tools
-    );
+      // Process already processed DB Tools
+      await processAlreadyProcessedDbTools(alreadyProcessedDbTools);
 
-    console.log("Tracking and ranking tables updated successfully for Bing.");
+      // Process unprocessed DB Tools in batches
+      const processedDbToolIds = await processUnprocessedDbTools(
+        unprocessedDbTools
+      );
+
+      // Process remaining DB Tools with placeholder values
+      await processRemainingDbTools(unprocessedDbTools.slice(15));
+
+      // Update the tracking table with the new state
+      await updateTrackingTable(
+        mergedDbTools, // Already processed DB Tools
+        processedDbToolIds, // Newly processed DB Tools
+        unprocessedDbTools // Remaining unprocessed DB Tools
+      );
+
+      console.log("Tracking and ranking tables updated successfully for Bing.");
+    }
     return sendResponse(200, "Bing data updated successfully.");
   } catch (error) {
     console.error("Error processing Bing metrics:", error);
@@ -78,16 +119,13 @@ const fetchTrackingData = async () => {
   return getItemByQuery({
     table: TABLE_NAME.TRACKING_RESOURCES,
     KeyConditionExpression: "#date = :date AND #resource_type = :resourceType",
-    FilterExpression: "#table_name = :tableName",
     ExpressionAttributeNames: {
       "#date": "date",
       "#resource_type": "resource_type",
-      "#table_name": "table_name",
     },
     ExpressionAttributeValues: {
       ":date": getYesterdayDate,
       ":resourceType": RESOURCE_TYPE.BING,
-      ":tableName": TABLE_NAME.DB_TOOLS,
     },
   });
 };
@@ -325,17 +363,15 @@ const updateTrackingTable = async (
       resource_type: RESOURCE_TYPE.BING,
     },
     UpdateExpression:
-      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools, #table_name = :tableName, #status = :status",
+      "SET #processed_db_tools = :processedDbTools, #merged_db_tools = :mergedDbTools,  #status = :status",
     ExpressionAttributeNames: {
       "#processed_db_tools": "processed_db_tools",
       "#merged_db_tools": "merged_db_tools",
-      "#table_name": "table_name",
       "#status": "status",
     },
     ExpressionAttributeValues: {
       ":processedDbTools": processedDbToolIds,
       ":mergedDbTools": newMergedDbTools,
-      ":tableName": TABLE_NAME.DB_TOOLS,
       ":status": status,
     },
   });

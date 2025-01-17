@@ -11,14 +11,6 @@ export const handler = async (event) => {
       return sendResponse(400, "An array of database IDs is required", null);
     }
 
-    if (ids.length > 5) {
-      return sendResponse(
-        400,
-        "You can request a maximum of 5 databases at a time.",
-        null
-      );
-    }
-
     // Create Keys for batchGet
     const Keys = ids.map((id) => ({ id }));
     const data = await getBatchItems(TABLE_NAME.DATABASES, Keys);

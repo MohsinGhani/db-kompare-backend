@@ -4,6 +4,7 @@ import {
   fetchAllItemByDynamodbIndex,
 } from "../../helpers/dynamodb.js";
 import { sendResponse } from "../../helpers/helpers.js";
+import { fetchDbToolById } from "../common/fetchDbToolById.js";
 import { fetchDbToolCategoryDetail } from "../common/fetchDbToolCategoryDetail.js";
 
 export const handler = async (event) => {
@@ -118,6 +119,8 @@ const transformData = async (items) => {
       const categoryDetail = await fetchDbToolCategoryDetail(
         groupedData[dbToolId].categoryId
       );
+      const dbToolName = await fetchDbToolById(dbToolId);
+      groupedData[dbToolId].dbToolName = dbToolName?.tool_name;
       groupedData[dbToolId].categoryDetail = categoryDetail;
     })
   );
