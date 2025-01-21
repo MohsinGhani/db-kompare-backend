@@ -65,6 +65,9 @@ provider:
     CLIENT_SECRET: ${env:CLIENT_SECRET}
     GITHUB_CLIENT_ID: ${env:GITHUB_CLIENT_ID}
     GITHUB_CLIENT_SECRET: ${env:GITHUB_CLIENT_SECRET}
+    ADMIN_EMAIL: ${env:ADMIN_EMAIL}
+    SOURCE_EMAIL: ${env:SOURCE_EMAIL}
+
     # LINKEDIN_CLIENT_ID: ${env:LINKEDIN_CLIENT_ID}
     # LINKEDIN_CLIENT_SECRET: ${env:LINKEDIN_CLIENT_SECRET}
 
@@ -114,8 +117,11 @@ provider:
         - Effect: Allow
           Action:
             - cognito-idp:*
+            - ses:SendEmail
           Resource:
             - arn:aws:cognito-idp:eu-west-1:253490764757:userpool/eu-west-1_NGNKtdSEL
+            - arn:aws:ses:${self:provider.region}:${aws:accountId}:identity/${self:provider.environment.SOURCE_EMAIL}
+            - arn:aws:ses:${self:provider.region}:${aws:accountId}:identity/${self:provider.environment.ADMIN_EMAIL}
 functions:
   postConfirmation:
     handler: functions/auth/postConfirmation.handler
