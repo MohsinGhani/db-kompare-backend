@@ -1,211 +1,133 @@
 import { TABLE_NAME } from "../../helpers/constants.js";
 import {
-  fetchAllItemByDynamodbIndex,
   getItem,
+  fetchAllItemByDynamodbIndex,
 } from "../../helpers/dynamodb.js";
 import { sendResponse } from "../../helpers/helpers.js";
 import { fetchDbToolById } from "../common/fetchDbToolById.js";
 import { fetchDbToolCategoryDetail } from "../common/fetchDbToolCategoryDetail.js";
 
 export const handler = async (event) => {
-  let startDate = "";
-  let endDate = "";
-
-  console.log("Received event:", JSON.stringify(event, null, 2));
-  if (event.body) {
-    const parsedBody = JSON.parse(event.body);
-    startDate = parsedBody.startDate;
-    endDate = parsedBody.endDate;
-  } else if (event.queryStringParameters) {
-    startDate = event.queryStringParameters.startDate;
-    endDate = event.queryStringParameters.endDate;
-  }
-
-  if (!startDate || !endDate) {
-    return sendResponse(
-      400,
-      "Both startDate and endDate must be provided for date range filtering."
-    );
-  }
-
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
-    return sendResponse(
-      400,
-      "startDate and endDate must be in YYYY-MM-DD format."
-    );
-  }
-
-  if (startDate > endDate) {
-    return sendResponse(400, "startDate cannot be later than endDate.");
-  }
-
-  const queryParams = {
-    TableName: TABLE_NAME.DB_TOOLS_RANKINGS,
-    IndexName: "byStatusAndDate",
-    KeyConditionExpression: "#includeMe = :includeMeVal",
-    ExpressionAttributeNames: {
-      "#includeMe": "includeMe",
-    },
-    ExpressionAttributeValues: {
-      ":includeMeVal": "YES",
-    },
-  };
-
-  if (startDate && endDate) {
-    queryParams.KeyConditionExpression +=
-      " AND #date BETWEEN :startDate AND :endDate";
-    queryParams.ExpressionAttributeNames["#date"] = "date";
-    queryParams.ExpressionAttributeValues[":startDate"] = startDate;
-    queryParams.ExpressionAttributeValues[":endDate"] = endDate;
-  }
-
   try {
-    const allItems = await fetchAllItemByDynamodbIndex(queryParams);
+    let startDate = "";
+    let endDate = "";
+    // Parse the request body
+    if (event.body) {
+      const parsedBody = JSON.parse(event.body);
+      startDate = parsedBody.startDate;
+      endDate = parsedBody.endDate;
+    } else if (event.queryStringParameters) {
+      startDate = event.queryStringParameters.startDate;
+      endDate = event.queryStringParameters.endDate;
+    }
 
-    if (allItems.length === 0) {
+    // Validate date range if provided
+    if ((startDate && !endDate) || (!startDate && endDate)) {
       return sendResponse(
         400,
-        "No rankings found for the specified date range"
+        "Both startDate and endDate must be provided for date range filtering."
       );
     }
 
-    const transformedData = await calculateScoreAndRankChanges(
-      allItems,
-      startDate,
-      endDate
-    );
-
-    return sendResponse(200, "Ranks fetched Successfully", transformedData);
-  } catch (error) {
-    console.error("Error fetching items:", error);
-    return sendResponse(
-      500,
-      "Failed to fetch items from DynamoDB",
-      error.message
-    );
-  }
-};
-
-const calculateScoreAndRankChanges = async (
-  rankingsData,
-  startDate,
-  endDate
-) => {
-  try {
-    const [start, end] = [new Date(startDate), new Date(endDate)];
-
-    const dbToolMap = getDbToolMap(rankingsData, start, end);
-
-    const result = await Promise.all(
-      Object.keys(dbToolMap).map(async (dbtoolId) => {
-        const toolData = dbToolMap[dbtoolId];
-
-        const sortedData = sortDataByDate(toolData);
-        const mostRecentData = getMostRecentData(sortedData, endDate);
-
-        if (!mostRecentData) {
-          return null;
-        }
-
-        const dbToolDetail = await fetchDbToolById(dbtoolId);
-        if (!dbToolDetail) {
-          console.warn(`No DB tool details found for ${dbtoolId}`);
-          return null;
-        }
-
-        const categoryDetail = await fetchDbToolCategoryDetail(
-          dbToolDetail.category_id
+    // If dates are provided, ensure they are in the correct format (YYYY-MM-DD)
+    if (startDate && endDate) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+        return sendResponse(
+          400,
+          "startDate and endDate must be in YYYY-MM-DD format."
         );
-
-        const { scoreChanges, rankChanges } = calculateChanges(
-          sortedData,
-          mostRecentData
-        );
-
-        return {
-          dbtool_id: dbtoolId,
-          name: dbToolDetail.tool_name,
-          category: categoryDetail ? categoryDetail.name : "Unknown",
-          category_id: dbToolDetail.category_id,
-          scoreChanges,
-          rankChanges,
-        };
-      })
-    );
-
-    return result.filter(Boolean);
-  } catch (error) {
-    console.error("Error in calculateScoreAndRankChanges:", error);
-    throw error;
-  }
-};
-
-const getDbToolMap = (rankingsData, start, end) => {
-  const dbToolMap = {};
-
-  rankingsData.forEach((item) => {
-    const { date, rankings } = item;
-
-    rankings.forEach((tool) => {
-      if (!dbToolMap[tool.dbtool_id]) {
-        dbToolMap[tool.dbtool_id] = [];
       }
-      dbToolMap[tool.dbtool_id].push({
-        date,
-        totalScore: tool.ui_popularity.totalScore,
-        rank: tool.rank,
-        tool_name: tool.tool_name,
-      });
-    });
-  });
 
-  return dbToolMap;
-};
-
-const sortDataByDate = (data) => {
-  return data.sort((a, b) => new Date(a.date) - new Date(b.date));
-};
-
-const getMostRecentData = (data, endDate) => {
-  const end = new Date(endDate);
-
-  const sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return sortedData.find((item) => new Date(item.date) <= end);
-};
-
-const calculateChanges = (data, mostRecentData) => {
-  const scoreChanges = [];
-  const rankChanges = [];
-
-  scoreChanges.push({
-    date: mostRecentData.date,
-    totalScore: mostRecentData.totalScore,
-  });
-  rankChanges.push({
-    date: mostRecentData.date,
-    rank: mostRecentData.rank,
-  });
-
-  data.forEach((item) => {
-    if (item.date !== mostRecentData.date) {
-      const scoreDifference = mostRecentData.totalScore - item.totalScore;
-      scoreChanges.push({
-        date: item.date,
-        totalScore: scoreDifference,
-      });
-
-      const rankChange = item.rank - mostRecentData.rank;
-      const rankStatus =
-        rankChange > 0 ? "INCREASED" : rankChange < 0 ? "DECREASED" : "SAME";
-      rankChanges.push({
-        date: item.date,
-        status: rankStatus,
-        rank: item.rank,
-      });
+      if (startDate > endDate) {
+        return sendResponse(400, "startDate cannot be later than endDate.");
+      }
     }
-  });
 
-  return { scoreChanges, rankChanges };
+    // Define the base query parameters
+    let queryParams = {
+      TableName: TABLE_NAME.DB_TOOLS_METRICES,
+      IndexName: "byStatusAndDate",
+      KeyConditionExpression: "#includeMe = :includeMeVal",
+      ExpressionAttributeNames: {
+        "#includeMe": "includeMe",
+      },
+      ExpressionAttributeValues: {
+        ":includeMeVal": "YES",
+      },
+    };
+
+    // If date range is provided, add it to the KeyConditionExpression
+    if (startDate && endDate) {
+      queryParams.KeyConditionExpression +=
+        " AND #date BETWEEN :startDate AND :endDate";
+      queryParams.ExpressionAttributeNames["#date"] = "date";
+      queryParams.ExpressionAttributeValues[":startDate"] = startDate;
+      queryParams.ExpressionAttributeValues[":endDate"] = endDate;
+    }
+
+    // Fetch items from DynamoDB
+    const items = await fetchAllItemByDynamodbIndex(queryParams);
+    const transformedData = await transformData(items);
+
+    const filteredData = transformedData.filter((db) => db.ui_display !== "NO");
+
+    return sendResponse(200, "Fetch metrics successfully", filteredData);
+  } catch (error) {
+    console.error("Error fetching metrics:", error);
+    return sendResponse(500, "Failed to fetch metrics", {
+      error: error.message,
+    });
+  }
+};
+
+const transformData = async (items) => {
+  // Group items by `dbToolId`
+  const groupedData = items.reduce((acc, item) => {
+    const {
+      dbtool_id: dbToolId,
+      date,
+      popularity,
+      ui_popularity,
+      category_id,
+    } = item;
+
+    // Ensure the DB Tool entry exists in the accumulator
+    if (!acc[dbToolId]) {
+      acc[dbToolId] = {
+        dbToolId,
+        categoryDetail: "Fetching...", // Placeholder for the category detail
+        metrics: [],
+      };
+    }
+
+    // Add metrics for the current date
+    acc[dbToolId].metrics.push({
+      date,
+      popularity,
+      ui_popularity,
+    });
+
+    // Add category_id for fetching category detail later
+    acc[dbToolId].categoryId = category_id;
+
+    return acc;
+  }, {});
+
+  // Fetch category details for each unique dbToolId
+  const dbToolIds = Object.keys(groupedData);
+  await Promise.all(
+    dbToolIds.map(async (dbToolId) => {
+      const categoryDetail = await fetchDbToolCategoryDetail(
+        groupedData[dbToolId].categoryId
+      );
+      const dbToolName = await fetchDbToolById(dbToolId);
+      groupedData[dbToolId].dbToolName = dbToolName?.tool_name;
+      groupedData[dbToolId].categoryDetail = categoryDetail;
+      groupedData[dbToolId].ui_display = dbToolName?.ui_display;
+    })
+  );
+
+  // Convert the grouped object to an array
+  return Object.values(groupedData);
 };

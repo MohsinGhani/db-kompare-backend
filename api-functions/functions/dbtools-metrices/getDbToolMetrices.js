@@ -70,7 +70,9 @@ export const handler = async (event) => {
     const items = await fetchAllItemByDynamodbIndex(queryParams);
     const transformedData = await transformData(items);
 
-    return sendResponse(200, "Fetch metrics successfully", transformedData);
+    const filteredData = transformedData.filter((db) => db.ui_display !== "NO");
+
+    return sendResponse(200, "Fetch metrics successfully", filteredData);
   } catch (error) {
     console.error("Error fetching metrics:", error);
     return sendResponse(500, "Failed to fetch metrics", {
@@ -122,6 +124,7 @@ const transformData = async (items) => {
       const dbToolName = await fetchDbToolById(dbToolId);
       groupedData[dbToolId].dbToolName = dbToolName?.tool_name;
       groupedData[dbToolId].categoryDetail = categoryDetail;
+      groupedData[dbToolId].ui_display = dbToolName?.ui_display;
     })
   );
 

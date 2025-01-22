@@ -68,7 +68,10 @@ export const handler = async (event) => {
     const items = await fetchAllItemByDynamodbIndex(queryParams);
     const transformedData = await transformData(items);
 
-    return sendResponse(200, "Fetch metrices successfully", transformedData);
+    // Filter out objects that explicitly contain "ui_display": "NO"
+    const filteredData = transformedData.filter(((db) => db.ui_display !== "NO"));
+
+    return sendResponse(200, "Fetch metrices successfully", filteredData);
   } catch (error) {
     console.error("Error fetching metrices:", error);
     return sendResponse(500, "Failed to fetch metrices", {
@@ -85,7 +88,7 @@ const getDatabaseNameById = async (databaseId) => {
   try {
     const result = await getItem(TABLE_NAME.DATABASES, key);
     if (result.Item) {
-      return result.Item.name;
+      return result.Item;
     }
     return "Unknown"; // Fallback if the database name is not found
   } catch (error) {
@@ -123,7 +126,8 @@ const transformData = async (items) => {
   await Promise.all(
     databaseIds.map(async (databaseId) => {
       const databaseName = await getDatabaseNameById(databaseId);
-      groupedData[databaseId].databaseName = databaseName;
+      groupedData[databaseId].databaseName = databaseName?.name;
+      groupedData[databaseId].ui_display = databaseName?.ui_display;
     })
   );
 

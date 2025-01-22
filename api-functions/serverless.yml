@@ -372,6 +372,15 @@ functions:
           method: get
           cors: true
           private: true
+  
+  getDbToolsCount:
+    handler: functions/dbtools/getDbToolsCount.handler
+    events:
+      - http:
+          path: /get-dbtools-count
+          method: get
+          cors: true
+          private: true
 
   
   # DB TOOL GITHUB METRICES SCHEDULE

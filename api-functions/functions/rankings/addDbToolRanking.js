@@ -17,7 +17,10 @@ export const handler = async (event) => {
     console.log("Fetching all active DB tools...");
 
     // Fetch all active DB tools
-    const dbTools = await fetchAllDbTools();
+    const all_dbTools = await fetchAllDbTools();
+
+    // Filter out objects that explicitly contain "ui_display": "NO"
+    const dbTools = all_dbTools.filter((dbtool) => dbtool.ui_display !== "NO");
 
     if (!dbTools || dbTools.length === 0) {
       console.log("No active DB tools found.");

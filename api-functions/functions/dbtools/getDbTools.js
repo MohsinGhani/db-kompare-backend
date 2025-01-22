@@ -18,9 +18,11 @@ export const handler = async (event) => {
       },
     });
 
+    const filteredData = data.filter((db) => db.ui_display !== "NO");
+
     // Transform data by replacing category_id with category details
     const transformData = await Promise.all(
-      data.map(async (item) => {
+      filteredData.map(async (item) => {
         const categoryDetails = await fetchDbToolCategoryDetail(
           item?.category_id
         );

@@ -49,8 +49,11 @@ export const handler = async (event, context, callback) => {
     }
     // Fetch databases based on the status
     const data = await fetchStatus(status);
+    
+    // Filter out objects that explicitly contain "ui_display": "NO"
+    const filteredData = data.filter((db) => db.ui_display !== "NO");
 
-    return sendResponse(200, "Successfully fetched databases", data);
+    return sendResponse(200, "Successfully fetched databases", filteredData);
   } catch (error) {
     console.error("Error fetching databases:", error.message);
     return sendResponse(500, "Internal Server Error", error.message);

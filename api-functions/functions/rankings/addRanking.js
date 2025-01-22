@@ -16,7 +16,10 @@ export const handler = async (event) => {
     console.log("Fetching all active databases...");
 
     // Fetch all active databases
-    const databases = await fetchAllDatabases();
+    const all_databases = await fetchAllDatabases();
+
+    // Filter out objects that explicitly contain "ui_display": "NO"
+    const databases = all_databases.filter((db) => db.ui_display !== "NO");
 
     if (!databases || databases.length === 0) {
       console.log("No active databases found.");
