@@ -1,0 +1,195 @@
+org: dbkompare
+app: db-kompare
+service: aurora-db
+configValidationMode: error
+
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: eu-west-1
+  stage: ${opt:stage, 'dev'}
+  versionFunctions: false
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - rds-db:connect
+      Resource:
+        - Fn::Sub: "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db-cluster:${AuroraCluster}"
+  environment:
+    PG_HOST: ${self:custom.outputs.AuroraClusterEndpoint}
+    PG_USER: "dbadmin"
+    PG_DATABASE: "mydatabase"
+    PG_PORT: "5432"
+    PG_PASSWORD: ${env:DB_PASSWORD}
+  
+
+plugins:
+  - serverless-pseudo-parameters
+  - serverless-dotenv-plugin
+  - serverless-offline
+
+functions:
+  queryDB:
+    handler: functions/handler.queryDB
+    timeout: 30
+    events:
+      - http:
+          path: query
+          method: post
+
+custom:
+  outputs:
+    AuroraClusterEndpoint:
+      Fn::GetAtt: [AuroraCluster, Endpoint.Address]
+  serverless-offline:
+    httpPort: 4000    
+
+resources:
+  Resources:
+    #############################
+    # VPC and Networking Resources
+    #############################
+    # Create a VPC
+    MyVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsSupport: true
+        EnableDnsHostnames: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-vpc
+
+    # Create an Internet Gateway
+    MyInternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-igw
+
+    # Attach the Internet Gateway to the VPC
+    AttachGateway:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        VpcId: !Ref MyVPC
+        InternetGatewayId: !Ref MyInternetGateway
+
+    # Create Public Subnet 1
+    PublicSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: 10.0.1.0/24
+        AvailabilityZone: eu-west-1a
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-subnet-1
+
+    # Create Public Subnet 2
+    PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: 10.0.2.0/24
+        AvailabilityZone: eu-west-1b
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-subnet-2
+
+    # Create a Route Table for public subnets
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref MyVPC
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${self:provider.stage}-public-rt
+
+    # Create a route in the Route Table to the Internet Gateway
+    PublicRoute:
+      Type: AWS::EC2::Route
+      DependsOn: AttachGateway
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref MyInternetGateway
+
+    # Associate Public Subnet 1 with the Route Table
+    PublicSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnet1
+        RouteTableId: !Ref PublicRouteTable
+
+    # Associate Public Subnet 2 with the Route Table
+    PublicSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnet2
+        RouteTableId: !Ref PublicRouteTable
+
+    #############################
+    # Database Networking and Security
+    #############################
+    # Security Group for Aurora allowing public access on port 5432
+    DBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: "Security group for Aurora Serverless - Public Access"
+        VpcId: !Ref MyVPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: 0.0.0.0/0
+
+    # DB Subnet Group that uses the public subnets
+    AuroraDBSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: "Subnets for Aurora Serverless"
+        SubnetIds:
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+        DBSubnetGroupName: ${self:service}-${self:provider.stage}-subnet-group
+
+    #############################
+    # RDS Aurora Serverless Resources
+    #############################
+    AuroraCluster:
+      Type: AWS::RDS::DBCluster
+      Properties:
+        Engine: aurora-postgresql
+        EngineVersion: "16.4"
+        Port: 5432
+        DatabaseName: "mydatabase"
+        MasterUsername: "dbadmin"
+        MasterUserPassword: ${env:DB_PASSWORD}
+        BackupRetentionPeriod: 7
+        VpcSecurityGroupIds:
+          - !Ref DBSecurityGroup
+        DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+        ServerlessV2ScalingConfiguration:
+          MinCapacity: 1
+          MaxCapacity: 4
+
+    AuroraDBInstance:
+      Type: AWS::RDS::DBInstance
+      Properties:
+        Engine: aurora-postgresql
+        DBInstanceClass: db.serverless
+        DBClusterIdentifier: !Ref AuroraCluster
+        PubliclyAccessible: true
+
+  Outputs:
+    AuroraClusterEndpoint:
+      Description: "Aurora Serverless Cluster Endpoint"
+      Value: !GetAtt AuroraCluster.Endpoint.Address
+    AuroraDBInstanceEndpoint:
+      Description: "Aurora Serverless DB Instance Endpoint"
+      Value: !GetAtt AuroraDBInstance.Endpoint.Address

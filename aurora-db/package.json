@@ -1,0 +1,21 @@
+{
+  "name": "aurora-db",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "serverless-dotenv-plugin": "^6.0.0",
+    "serverless-pseudo-parameters": "^2.6.1"
+  },
+  "devDependencies": {
+    "serverless-offline": "^14.4.0"
+  }
+}
