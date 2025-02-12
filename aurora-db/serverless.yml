@@ -33,11 +33,17 @@ plugins:
 functions:
   queryDB:
     handler: functions/handler.queryDB
-    timeout: 30
     events:
       - http:
           path: query
           method: post
+
+  getAllAssignments:
+    handler: functions/assignments/getAllAssignments.handler
+    events:
+      - http:
+          path: /get-assignments
+          method: get
 
 custom:
   outputs:

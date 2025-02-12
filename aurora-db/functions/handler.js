@@ -1,75 +1,39 @@
-require('dotenv').config();
-const { Pool } = require('pg');
+import { runQuery } from '../helpers/db-client.js';
 
-const pool = new Pool({
-  host: process.env.PG_HOST,
-  user: process.env.PG_USER,
-  database: process.env.PG_DATABASE,
-  port: process.env.PG_PORT,
-  password: process.env.PG_PASSWORD,
-  ssl: { rejectUnauthorized: false },
-});
-
-module.exports.queryDB = async (event) => {
-  let body;
-
-  // Parse JSON body correctly
-  if (event.body) {
-    try {
-      body = JSON.parse(event.body); // ✅ Parse the request body
-    } catch (err) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Invalid JSON format in request body" }),
-      };
-    }
-  } else {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: "Missing request body" }),
-    };
-  }
-
-  const { userQuery, assignmentId } = body; // ✅ Extract values after parsing
-  console.log("Received Payload:", userQuery, assignmentId); // Debugging log
-
-  const client = await pool.connect();
-
+export const queryDB = async (event) => {
   try {
-      // Fetch the correct query from the database
-      const correctQueryRes = await client.query(
-          'SELECT correct_query FROM assignments WHERE assignment_id = $1',
-          [assignmentId]
-      );
+    // 1. Parse incoming JSON from event.body
+    const { userQuery, assignmentId } = JSON.parse(event.body);
 
-      
-      if (correctQueryRes.rows.length === 0) {
-          throw new Error('Assignment not found');
-      }
+    // 2. Fetch the correct query from 'assignments'
+    const correctQueryRes = await runQuery(
+      'SELECT correct_query FROM assignments WHERE assignment_id = $1',
+      [assignmentId]
+    );
 
-      const correctQuery = correctQueryRes.rows[0].correct_query;
+    if (!correctQueryRes.length) {
+      throw new Error('Assignment not found');
+    }
 
-      // Run the correct query
-      const correctResult = await client.query(correctQuery);
-      const userResult = await client.query(userQuery);
+    const correctQuery = correctQueryRes[0].correct_query;
 
-      // Compare results
-      const isCorrect = JSON.stringify(correctResult.rows) === JSON.stringify(userResult.rows);
+    // 3. Execute both queries
+    const correctResult = await runQuery(correctQuery);
+    const userResult = await runQuery(userQuery);
 
-      await client.end();
+    // 4. Compare results
+    const isCorrect = JSON.stringify(correctResult) === JSON.stringify(userResult);
 
-      return {
-          statusCode: 200,
-          body: JSON.stringify({
-              isCorrect,
-              userResult: userResult.rows
-          })
-      };
+    // 5. Return result
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ isCorrect, userResult }),
+    };
   } catch (error) {
-      await client.end();
-      return {
-          statusCode: 400,
-          body: JSON.stringify({ error: error.message })
-      };
+    console.error('Lambda Error:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message }),
+    };
   }
 };
