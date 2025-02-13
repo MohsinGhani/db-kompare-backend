@@ -24,7 +24,10 @@ provider:
     PG_PORT: "5432"
     PG_PASSWORD: ${env:DB_PASSWORD}
   
-
+  apiGateway:
+    apiKeys:
+      - name: aurora-key  
+  
 plugins:
   - serverless-pseudo-parameters
   - serverless-dotenv-plugin
@@ -44,6 +47,63 @@ functions:
       - http:
           path: /get-assignments
           method: get
+  
+  ## ---------Lessons functions---------
+  createLesson:
+    handler: functions/lessons/createLesson.handler
+    events:
+      - http:
+          path: /create-lesson
+          method: post
+          private: true
+          cors: true
+
+  getLessons:
+    handler: functions/lessons/getLessons.handler
+    events:
+      - http:
+          path: /get-lessons
+          method: get 
+          private: true
+          cors: true
+  
+  getSingleLesson:
+    handler: functions/lessons/getSingleLesson.handler
+    events:
+      - http:
+          path: lesson/{id}
+          method: get 
+          private: true
+          cors: true
+
+  updateLesson:
+    handler: functions/lessons/updateLesson.handler
+    events:
+      - http:
+          path: lesson/{id}
+          method: put 
+          private: true
+          cors: true
+  
+  deleteLesson:
+    handler: functions/lessons/deleteLesson.handler
+    events:
+      - http:
+          path: lesson/{id}
+          method: delete 
+          private: true
+          cors: true
+
+## ---------Company functions---------
+  createCompany:
+    handler: functions/company/createCompany.handler
+    events:
+      - http:
+          path: /create-company
+          method: post
+          private: true
+          cors: true        
+
 
 custom:
   outputs:

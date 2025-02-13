@@ -1,0 +1,116 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+// ================== Models ==================
+
+model Lessons {
+  id               Int             @id @default(autoincrement()) @map("id")
+  slug             String          @unique @db.VarChar(255) @map("slug")
+  title            String          @db.VarChar(255) @map("title")
+  shortTitle       String?         @db.VarChar(100) @map("short_title")
+  shortDescription String?         @db.VarChar(255) @map("short_description")
+  description      String?         @map("description")
+  category         LessonCategory  @map("category")
+  type             LessonType      @map("type")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  
+  questions        Questions[]
+  
+  @@map("lessons")
+}
+
+model Company {
+  id        Int        @id @default(autoincrement()) @map("id")
+  name      String     @unique @db.VarChar(255) @map("name")
+  slug      String     @unique @db.VarChar(255) @map("slug")
+  icon      String?    @db.VarChar(255) @map("icon")
+  
+  questions Questions[]
+  
+  @@map("company")
+}
+
+model Questions {
+  id                  Int              @id @default(autoincrement()) @map("id")
+  slug                String           @unique @db.VarChar(255) @map("slug")
+  category            LessonType       @map("category")
+  
+  // Optional relation to Lesson
+  lessonId            Int?             @map("lesson_id")
+  lesson              Lessons?          @relation(fields: [lessonId], references: [id])
+  
+  difficulty          Difficulty       @map("difficulty")
+  title               String           @db.VarChar(255) @map("title")
+  shortTitle          String?          @db.VarChar(100) @map("short_title")
+  description         String?          @map("description")
+  supportedRuntime    SupportedRuntime @map("supported_runtime")
+  solutionExplanation String?          @map("solution_explanation")
+  baseQuery           String?          @map("base_query")
+  seoDescription      String?          @map("seo_description")
+  
+  // Optional relation to Company
+  companyId           Int?             @map("company_id")
+  company             Company?         @relation(fields: [companyId], references: [id])
+  
+  // Multiple tags as an array (defaulting to an empty array)
+  tag                 QuestionTag[]    @default([]) @map("tag")
+  
+  questionType        QuestionType     @map("question_type")
+  
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  
+  @@map("questions")
+}
+
+// ================== Enums ==================
+
+enum LessonCategory {
+  BASIC
+  INTERMEDIATE
+  HARD
+}
+
+enum LessonType {
+  PGSQL
+  MYSQL
+  ORACLE
+  MSSQL
+  OTHER
+}
+
+enum SupportedRuntime {
+  POSTGRES
+  MYSQL
+}
+
+enum QuestionTag {
+  SQL
+  INTERVIEW
+  ALGORITHMS
+  DATA_STRUCTURES
+  MACHINE_LEARNING
+  SYSTEM_DESIGN
+}
+
+enum Difficulty {
+  ALL
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionType {
+  INTERVIEW
+  LESSON
+}
