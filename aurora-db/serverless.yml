@@ -27,11 +27,21 @@ provider:
   apiGateway:
     apiKeys:
       - name: aurora-key  
+custom:
+  outputs:
+    AuroraClusterEndpoint:
+      Fn::GetAtt: [AuroraCluster, Endpoint.Address]
+  serverless-offline:
+    httpPort: 4000
+  prune:
+    automatic: true
+    number: 1      
   
 plugins:
   - serverless-pseudo-parameters
   - serverless-dotenv-plugin
   - serverless-offline
+  - serverless-prune-plugin
 
 functions:
   queryDB:
@@ -104,13 +114,89 @@ functions:
           private: true
           cors: true        
 
+## --------- Question functions---------
+  createQuestion:
+    handler: functions/questions/createQuestion.handler
+    events:
+      - http:
+          path: /create-question
+          method: post
+          private: true
+          cors: true
 
-custom:
-  outputs:
-    AuroraClusterEndpoint:
-      Fn::GetAtt: [AuroraCluster, Endpoint.Address]
-  serverless-offline:
-    httpPort: 4000    
+  getQuestions:
+    handler: functions/questions/getQuestions.handler
+    events:
+      - http:
+          path: /get-questions
+          method: get
+          private: true
+          cors: true
+
+  getSingleQuestion:
+    handler: functions/questions/getSingleQuestion.handler
+    events:
+      - http:
+          path: question/{slug}
+          method: get
+          private: true
+          cors: true
+
+  updateQuestion:
+    handler: functions/questions/updateQuestion.handler
+    events:
+      - http:
+          path: question/{slug}
+          method: put
+          private: true
+          cors: true
+
+  deleteQuestion:
+    handler: functions/questions/deleteQuestion.handler
+    events:
+      - http:
+          path: question/{slug}
+          method: delete
+          private: true
+          cors: true    
+
+  ## --------- TAGS functions---------                     
+  createTag:
+    handler: functions/tags/createTag.handler
+    events:
+      - http:
+          path: /create-tag
+          method: post
+          private: true
+          cors: true
+
+  getTags:
+    handler: functions/tags/getTags.handler
+    events:
+      - http:
+          path: /get-tags
+          method: get
+          private: true
+          cors: true
+
+  updateTag:
+    handler: functions/tags/updateTag.handler
+    events:
+      - http:
+          path: tag/{id}
+          method: put
+          private: true
+          cors: true
+
+  deleteTag:
+    handler: functions/tags/deleteTag.handler
+    events:
+      - http:
+          path: tag/{id}
+          method: delete
+          private: true
+          cors: true
+
 
 resources:
   Resources:

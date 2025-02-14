@@ -12,7 +12,7 @@ generator client {
 
 // ================== Models ==================
 
-model Lessons {
+model Lesson {
   id               Int             @id @default(autoincrement()) @map("id")
   slug             String          @unique @db.VarChar(255) @map("slug")
   title            String          @db.VarChar(255) @map("title")
@@ -23,10 +23,10 @@ model Lessons {
   type             LessonType      @map("type")
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  questions        Question[]
   
-  questions        Questions[]
-  
-  @@map("lessons")
+  @@map("lesson")
 }
 
 model Company {
@@ -35,19 +35,18 @@ model Company {
   slug      String     @unique @db.VarChar(255) @map("slug")
   icon      String?    @db.VarChar(255) @map("icon")
   
-  questions Questions[]
+  questions Question[]
   
   @@map("company")
 }
 
-model Questions {
+model Question {
   id                  Int              @id @default(autoincrement()) @map("id")
   slug                String           @unique @db.VarChar(255) @map("slug")
   category            LessonType       @map("category")
   
-  // Optional relation to Lesson
   lessonId            Int?             @map("lesson_id")
-  lesson              Lessons?          @relation(fields: [lessonId], references: [id])
+  lesson              Lesson?          @relation(fields: [lessonId], references: [id])
   
   difficulty          Difficulty       @map("difficulty")
   title               String           @db.VarChar(255) @map("title")
@@ -58,19 +57,30 @@ model Questions {
   baseQuery           String?          @map("base_query")
   seoDescription      String?          @map("seo_description")
   
-  // Optional relation to Company
   companyId           Int?             @map("company_id")
   company             Company?         @relation(fields: [companyId], references: [id])
   
-  // Multiple tags as an array (defaulting to an empty array)
-  tag                 QuestionTag[]    @default([]) @map("tag")
+  // Establish many-to-many relation with Tag model
+  tags                Tag[]            @relation("QuestionTags")
   
   questionType        QuestionType     @map("question_type")
   
   createdAt           DateTime         @default(now()) @map("created_at")
   updatedAt           DateTime         @updatedAt @map("updated_at")
   
-  @@map("questions")
+  @@map("question")
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement()) @map("id")
+  slug      String    @unique @db.VarChar(255) @map("slug")
+  name      String    @db.VarChar(255) @map("name")
+  type      LessonType  @map("type")
+  
+  // Many-to-many relation back to Question
+  questions Question[] @relation("QuestionTags")
+  
+  @@map("tag")
 }
 
 // ================== Enums ==================
@@ -82,6 +92,7 @@ enum LessonCategory {
 }
 
 enum LessonType {
+  SQL
   PGSQL
   MYSQL
   ORACLE
@@ -92,15 +103,6 @@ enum LessonType {
 enum SupportedRuntime {
   POSTGRES
   MYSQL
-}
-
-enum QuestionTag {
-  SQL
-  INTERVIEW
-  ALGORITHMS
-  DATA_STRUCTURES
-  MACHINE_LEARNING
-  SYSTEM_DESIGN
 }
 
 enum Difficulty {

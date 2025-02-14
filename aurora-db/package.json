@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "prisma": "^6.3.1",
-    "serverless-offline": "^14.4.0"
+    "serverless-offline": "^14.4.0",
+    "serverless-prune-plugin": "^2.1.0"
   }
 }
