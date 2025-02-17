@@ -11,6 +11,9 @@ export const TABLE_NAME = {
   DB_TOOLS: process.env.DB_TOOLS_TABLE,
   DB_TOOLS_METRICES: process.env.DB_TOOLS_METRICES_TABLE,
   DB_TOOLS_RANKINGS: process.env.DB_TOOLS_RANKINGS_TABLE,
+  QUESTIONS: process.env.QUESTIONS_TABLE,
+  COMPANIES: process.env.COMPANIES_TABLE,
+  TAGS: process.env.TAGS_TABLE,
 };
 
 export const STATUS_CODE = {
@@ -50,4 +53,36 @@ export const RESOURCE_TYPE = {
   GOOGLE: "GOOGLE",
   BING: "BING",
   ALL: "ALL",
+};
+
+export const LESSON_CATEGORY = {
+  BASIC: "BASIC",
+  INTERMEDIATE: "INTERMEDIATE",
+  HARD: "HARD"
+};
+
+export const LESSON_TYPE = {
+  SQL: "SQL",
+  PGSQL: "PGSQL",
+  MYSQL: "MYSQL",
+  ORACLE: "ORACLE",
+  MSSQL: "MSSQL",
+  OTHER: "OTHER"
+};
+
+export const SUPPORTED_RUNTIME = {
+  POSTGRES: "POSTGRES",
+  MYSQL: "MYSQL"
+};
+
+export const DIFFICULTY = {
+  ALL: "ALL",
+  EASY: "EASY",
+  MEDIUM: "MEDIUM",
+  HARD: "HARD"
+};
+
+export const QUESTION_TYPE = {
+  INTERVIEW: "INTERVIEW",
+  LESSON: "LESSON"
 };

@@ -16,7 +16,21 @@ const getUniqueSlug = async (baseSlug) => {
 export const handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
-    const { title, shortTitle, description, difficulty, category, supportedRuntime, solutionExplanation, baseQuery, seoDescription, questionType, lessonId, companyId, tags } = body;
+    const {
+      title,
+      shortTitle,
+      description,
+      difficulty,
+      category,
+      supportedRuntime,
+      solutionExplanation,
+      baseQuery,
+      seoDescription,
+      questionType,
+      lessonId,
+      companyId,
+      tags // ensure the payload sends `tags`
+    } =body
 
     if (!title) {
       return sendResponse(400, 'Missing "title"', null);
@@ -42,7 +56,9 @@ export const handler = async (event) => {
         questionType,
         lessonId,
         companyId,
-        tags
+        tags: {
+          connect: tags.map(tagId => ({ id: tagId }))
+        }
       }
     });
 

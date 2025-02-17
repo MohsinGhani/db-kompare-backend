@@ -83,6 +83,24 @@ model Tag {
   @@map("tag")
 }
 
+
+// ================== These Models will be use in questions ==================
+model Page {
+  page_id   Int    @id @default(autoincrement())
+  page_name String
+  
+  @@map("pages")
+}
+model PageLike {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  page_id    Int
+  liked_date DateTime
+  
+  @@map("page_likes")
+}
+
+
 // ================== Enums ==================
 
 enum LessonCategory {

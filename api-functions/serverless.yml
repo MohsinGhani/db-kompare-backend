@@ -18,6 +18,9 @@ custom:
   dbToolsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_TABLE}
   dbToolsMetricesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_METRICES_TABLE}
   dbToolsRankingsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_RANKINGS_TABLE}
+  questionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUESTIONS_TABLE}
+  tagsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TAGS_TABLE}
+  companiesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMPANIES_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -56,6 +59,9 @@ provider:
     DB_TOOLS_TABLE: db-kompare-dbtools-${self:provider.stage}
     DB_TOOLS_METRICES_TABLE: db-kompare-dbtools-metrices-${self:provider.stage}
     DB_TOOLS_RANKINGS_TABLE: db-kompare-dbtools-rankings-${self:provider.stage}
+    QUESTIONS_TABLE: db-kompare-questions-${self:provider.stage}
+    TAGS_TABLE: db-kompare-tags-${self:provider.stage}
+    COMPANIES_TABLE: db-kompare-companies-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -90,6 +96,9 @@ provider:
             - dynamodb:BatchWriteItem
           Resource:
             - ${self:custom.databasesTableArn}/index/byStatus
+            - ${self:custom.questionsTableArn}/index/byStatus
+            - ${self:custom.tagsTableArn}/index/byStatus
+            - ${self:custom.companiesTableArn}/index/byStatus
             - ${self:custom.blogsTableArn}/index/byStatus
             - ${self:custom.dbToolCategoriesTableArn}/index/byStatus
             - ${self:custom.dbToolsTableArn}/index/byStatus

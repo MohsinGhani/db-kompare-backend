@@ -218,6 +218,70 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+    Tag:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-tags-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S  # String (unique identifier)
+          - AttributeName: status
+            AttributeType: S  # String (e.g., "active", "inactive")
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH  # Partition key
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH  # Partition key for the GSI
+            Projection:
+              ProjectionType: ALL  # Project all attributes into the index
+    Questions:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-questions-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S         # Primary key as string
+          - AttributeName: status
+            AttributeType: S         # Attribute for global secondary index
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH            # Primary partition key
+        GlobalSecondaryIndexes:
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH        # GSI partition key to query by status
+            Projection:
+              ProjectionType: ALL
+    Companies:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-companies-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S         # Primary key as string
+          - AttributeName: status
+            AttributeType: S         # Used for the global secondary index
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH            # Primary partition key
+        GlobalSecondaryIndexes:
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH        # GSI partition key for querying companies by status
+            Projection:
+              ProjectionType: ALL
+
     # Database Metrices Table
     Metrices:
       Type: AWS::DynamoDB::Table
