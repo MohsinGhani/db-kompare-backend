@@ -1,31 +1,37 @@
-// src/functions/questions/deleteQuestionBySlug.js
-import prisma from '../../db/prismaClient.js';
-import { sendResponse } from '../../helpers/helpers.js';
+import { sendResponse } from "../../helpers/helpers.js";
+import { deleteItem, getItem } from "../../helpers/dynamodb.js";
+import { TABLE_NAME } from "../../helpers/constants.js";
 
 export const handler = async (event) => {
   try {
-    const { slug } = event.pathParameters || {};
-    if (!slug) {
-      return sendResponse(400, 'Missing question slug', null);
+    const { id } = event.pathParameters || {};
+
+    if (!id) {
+      return sendResponse(400, "Missing question ID", null);
     }
 
-    // Check if the question exists using its slug
-    const existingQuestion = await prisma.question.findUnique({
-      where: { slug }
-    });
-    
-    if (!existingQuestion) {
-      return sendResponse(404, 'Question not found', null);
+    // Check if the question exists using its ID
+    const tableName = TABLE_NAME.QUESTIONS;
+    const existingQuestion = await getItem(tableName, { id });
+
+    if (!existingQuestion || !existingQuestion.Item) {
+      return sendResponse(404, "Question not found", null);
     }
 
-    // Delete the question using its id
-    const deletedQuestion = await prisma.question.delete({
-      where: { id: existingQuestion.id }
-    });
+    // Delete the question using its ID
+    const deletedQuestion = await deleteItem(tableName, { id });
 
-    return sendResponse(200, 'Question deleted successfully', deletedQuestion);
+    if (!deletedQuestion.Attributes) {
+      return sendResponse(404, "Question not found or already deleted", null);
+    }
+
+    return sendResponse(
+      200,
+      "Question deleted successfully",
+      deletedQuestion.Attributes
+    );
   } catch (error) {
-    console.error('Error deleting question:', error);
-    return sendResponse(500, 'Internal server error', { error: error.message });
+    console.error("Error deleting question:", error);
+    return sendResponse(500, "Internal server error", { error: error.message });
   }
 };

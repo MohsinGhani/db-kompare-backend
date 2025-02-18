@@ -18,16 +18,20 @@ export const handler = async (event) => {
       baseQuery,
       seoDescription,
       companyId,
-      tags,              // Array of tag IDs
+      tags, // Array of tag IDs
       questionType,
     } = JSON.parse(event.body || "{}");
 
     // Validate required fields (adjust validations as needed)
-    if (!title || !category || !difficulty || !supportedRuntime || !questionType) {
+    if (
+      !title ||
+      !category ||
+      !difficulty ||
+      !supportedRuntime ||
+      !questionType
+    ) {
       return sendResponse(400, "Missing required fields", null);
     }
-
-  
 
     const questionItem = {
       id: uuidv4(),
@@ -46,7 +50,7 @@ export const handler = async (event) => {
       // Store tags as an array; adjust type if needed (e.g., as a set)
       tags: Array.isArray(tags) ? tags : [],
       questionType,
-      status: "ACTIVE"
+      status: "ACTIVE",
     };
 
     // Create the item in DynamoDB. The condition "attribute_not_exists(#id)"

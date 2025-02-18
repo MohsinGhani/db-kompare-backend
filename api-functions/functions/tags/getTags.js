@@ -4,9 +4,10 @@ import { TABLE_NAME } from "../../helpers/constants.js";
 
 export const handler = async () => {
   try {
-    const status = "ACTIVE";
-    const questions = await fetchAllItemByDynamodbIndex({
-      TableName: TABLE_NAME.QUESTIONS,
+    const status = "ACTIVE"; // Change this as needed
+
+    const tags = await fetchAllItemByDynamodbIndex({
+      TableName: TABLE_NAME.TAGS,
       IndexName: "byStatus",
       KeyConditionExpression: "#status = :status",
       ExpressionAttributeValues: {
@@ -17,9 +18,9 @@ export const handler = async () => {
       },
     });
 
-    return sendResponse(200, "Questions fetched successfully", questions);
+    return sendResponse(200, "Tags fetched successfully", tags);
   } catch (error) {
-    console.error("Error fetching questions:", error);
+    console.error("Error fetching tags:", error);
     return sendResponse(500, "Internal server error", { error: error.message });
   }
 };

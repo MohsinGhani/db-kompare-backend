@@ -1,29 +1,25 @@
-// src/functions/getSingleQuestionBySlug.js
-import prisma from '../../db/prismaClient.js';
-import { sendResponse } from '../../helpers/helpers.js';
+import { sendResponse } from "../../helpers/helpers.js";
+import { getItem } from "../../helpers/dynamodb.js";
+import { TABLE_NAME } from "../../helpers/constants.js";
 
 export const handler = async (event) => {
   try {
-    const { slug } = event.pathParameters || {};
-    if (!slug) {
-      return sendResponse(400, 'Missing question slug', null);
+    const { id } = event.pathParameters || {};
+
+    if (!id) {
+      return sendResponse(400, "Missing question ID", null);
     }
 
-    const question = await prisma.question.findUnique({
-      where: { slug },
-      include:{
-        company:true,
-        tags:true
-      }
-    });
+    const tableName = TABLE_NAME.QUESTIONS;
+    const question = await getItem(tableName, { id });
 
-    if (!question) {
-      return sendResponse(404, 'Question not found', null);
+    if (!question || !question.Item) {
+      return sendResponse(404, "Question not found", null);
     }
 
-    return sendResponse(200, 'Question fetched successfully', question);
+    return sendResponse(200, "Question fetched successfully", question.Item);
   } catch (error) {
-    console.error('Error fetching question:', error);
-    return sendResponse(500, 'Internal server error', { error: error.message });
+    console.error("Error fetching question:", error);
+    return sendResponse(500, "Internal server error", { error: error.message });
   }
 };
