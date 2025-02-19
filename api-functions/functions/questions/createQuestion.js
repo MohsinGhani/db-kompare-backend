@@ -20,6 +20,8 @@ export const handler = async (event) => {
       companyId,
       tags, // Array of tag IDs
       questionType,
+      access,
+      proper_query,
     } = JSON.parse(event.body || "{}");
 
     // Validate required fields (adjust validations as needed)
@@ -51,6 +53,8 @@ export const handler = async (event) => {
       tags: Array.isArray(tags) ? tags : [],
       questionType,
       status: "ACTIVE",
+      access,
+      proper_query,
     };
 
     // Create the item in DynamoDB. The condition "attribute_not_exists(#id)"
