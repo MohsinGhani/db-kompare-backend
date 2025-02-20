@@ -58,31 +58,31 @@ export const RESOURCE_TYPE = {
 export const LESSON_CATEGORY = {
   BASIC: "BASIC",
   INTERMEDIATE: "INTERMEDIATE",
-  HARD: "HARD"
+  HARD: "HARD",
 };
 
-export const LESSON_TYPE = {
+export const TOPICS_CATEGORIES = {
   SQL: "SQL",
   PGSQL: "PGSQL",
   MYSQL: "MYSQL",
   ORACLE: "ORACLE",
   MSSQL: "MSSQL",
-  OTHER: "OTHER"
+  OTHER: "OTHER",
 };
 
 export const SUPPORTED_RUNTIME = {
   POSTGRES: "POSTGRES",
-  MYSQL: "MYSQL"
+  MYSQL: "MYSQL",
 };
 
 export const DIFFICULTY = {
   ALL: "ALL",
   EASY: "EASY",
   MEDIUM: "MEDIUM",
-  HARD: "HARD"
+  HARD: "HARD",
 };
 
 export const QUESTION_TYPE = {
   INTERVIEW: "INTERVIEW",
-  LESSON: "LESSON"
+  LESSON: "LESSON",
 };

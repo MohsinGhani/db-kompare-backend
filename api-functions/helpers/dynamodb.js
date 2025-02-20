@@ -248,3 +248,21 @@ export const fetchAllItemByDynamodbIndex = async ({
 
   return CountOnly ? totalCount : allItems; // Return totalCount or allItems based on CountOnly
 };
+
+export const fetchItemsByIds = async (table, ids, keyName) => {
+  const keys = ids.map((id) => ({ [keyName]: id })); // Map IDs to expected key structure
+  const params = {
+    RequestItems: {
+      [table]: {
+        Keys: keys,
+      },
+    },
+  };
+  try {
+    const result = await DynamoDBClient.batchGet(params).promise();
+    return result.Responses[table] || [];
+  } catch (error) {
+    console.error("Error fetching items by IDs:", error);
+    return [];
+  }
+};

@@ -3,12 +3,18 @@ import { createItemInDynamoDB } from "../../helpers/dynamodb.js";
 import { v4 as uuidv4 } from "uuid";
 import { TABLE_NAME } from "../../helpers/constants.js";
 import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
+import {
+  TOPICS_CATEGORIES,
+  SUPPORTED_RUNTIME,
+  DIFFICULTY,
+  QUESTION_TYPE,
+} from "../../helpers/constants.js";
 
 export const handler = async (event) => {
   try {
     const {
       title,
-      category,
+      categories,
       lessonId,
       difficulty,
       shortTitle,
@@ -17,17 +23,17 @@ export const handler = async (event) => {
       solutionExplanation,
       baseQuery,
       seoDescription,
-      companyId,
+      companyIds,
       tags, // Array of tag IDs
       questionType,
       access,
       proper_query,
     } = JSON.parse(event.body || "{}");
 
-    // Validate required fields (adjust validations as needed)
+    // Validate required fields
     if (
       !title ||
-      !category ||
+      !categories ||
       !difficulty ||
       !supportedRuntime ||
       !questionType
@@ -35,30 +41,83 @@ export const handler = async (event) => {
       return sendResponse(400, "Missing required fields", null);
     }
 
+    // Validate difficulty level
+    if (!Object.values(DIFFICULTY).includes(difficulty)) {
+      return sendResponse(
+        400,
+        `Invalid difficulty level provided: ${difficulty}. Expected values: ${Object.values(
+          DIFFICULTY
+        ).join(", ")}`,
+        null
+      );
+    }
+
+    // Validate supported runtime
+    if (
+      !Array.isArray(supportedRuntime) ||
+      supportedRuntime.some(
+        (rt) => !Object.values(SUPPORTED_RUNTIME).includes(rt)
+      )
+    ) {
+      return sendResponse(
+        400,
+        `Invalid supported runtime provided: ${supportedRuntime}. Expected values: ${Object.values(
+          SUPPORTED_RUNTIME
+        ).join(", ")}`,
+        null
+      );
+    }
+
+    // Validate categories
+    if (
+      !Array.isArray(categories) ||
+      categories.some((cat) => !Object.values(TOPICS_CATEGORIES).includes(cat))
+    ) {
+      return sendResponse(
+        400,
+        `Invalid category provided: ${categories}. Expected values: ${Object.values(
+          TOPICS_CATEGORIES
+        ).join(", ")}`,
+        null
+      );
+    }
+
+    // Validate question type
+    if (
+      !Array.isArray(questionType) ||
+      questionType.some((qt) => !Object.values(QUESTION_TYPE).includes(qt))
+    ) {
+      return sendResponse(
+        400,
+        `Invalid question type provided: ${questionType}. Expected values: ${Object.values(
+          QUESTION_TYPE
+        ).join(", ")}`,
+        null
+      );
+    }
+
     const questionItem = {
       id: uuidv4(),
       createdAt: getTimestamp(),
-      category,
+      categories: categories,
       lessonId: lessonId || null,
       difficulty,
       title,
       shortTitle: shortTitle || "",
       description: description || "",
-      supportedRuntime,
+      supportedRuntime: supportedRuntime,
       solutionExplanation: solutionExplanation || "",
       baseQuery: baseQuery || "",
       seoDescription: seoDescription || "",
-      companyId: companyId || null,
-      // Store tags as an array; adjust type if needed (e.g., as a set)
+      companyIds: Array.isArray(companyIds) ? companyIds : [],
       tags: Array.isArray(tags) ? tags : [],
-      questionType,
+      questionType: questionType,
       status: "ACTIVE",
       access,
       proper_query,
     };
 
-    // Create the item in DynamoDB. The condition "attribute_not_exists(#id)"
-    // ensures we don't overwrite an existing item with the same id.
+    // Create the item in DynamoDB
     await createItemInDynamoDB(
       questionItem,
       TABLE_NAME.QUESTIONS,
