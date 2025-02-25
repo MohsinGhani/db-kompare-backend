@@ -32,6 +32,11 @@ export const DB_TOOL_STATUS = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
 };
+export const QUERY_STATUS = {
+  ALL: "ALL",
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+};
 
 export const USER_ROLE = {
   ADMIN: "ADMIN",

@@ -1,7 +1,7 @@
 // src/functions/createQuestion.js
 import { createItemInDynamoDB } from "../../helpers/dynamodb.js";
 import { v4 as uuidv4 } from "uuid";
-import { TABLE_NAME } from "../../helpers/constants.js";
+import { QUERY_STATUS, TABLE_NAME } from "../../helpers/constants.js";
 import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 import {
   TOPICS_CATEGORIES,
@@ -96,6 +96,19 @@ export const handler = async (event) => {
       );
     }
 
+    // fetching all question to add question no
+    const questions = await fetchAllItemByDynamodbIndex({
+      TableName: TABLE_NAME.QUESTIONS,
+      IndexName: "byStatus",
+      KeyConditionExpression: "#status = :status",
+      ExpressionAttributeValues: {
+        ":status": QUERY_STATUS.ACTIVE,
+      },
+      ExpressionAttributeNames: {
+        "#status": "status",
+      },
+    });
+
     const questionItem = {
       id: uuidv4(),
       createdAt: getTimestamp(),
@@ -112,9 +125,10 @@ export const handler = async (event) => {
       companyIds: Array.isArray(companyIds) ? companyIds : [],
       tags: Array.isArray(tags) ? tags : [],
       questionType: questionType,
-      status: "ACTIVE",
+      status: QUERY_STATUS.ACTIVE,
       access,
       proper_query,
+      questionNo: +questions?.length,
     };
 
     // Create the item in DynamoDB
