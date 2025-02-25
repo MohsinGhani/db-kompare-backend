@@ -1,3 +1,4 @@
+// src/functions/deleteQuestion.js
 import { sendResponse } from "../../helpers/helpers.js";
 import { deleteItem, getItem } from "../../helpers/dynamodb.js";
 import { TABLE_NAME } from "../../helpers/constants.js";
@@ -11,23 +12,37 @@ export const handler = async (event) => {
     }
 
     // Check if the question exists using its ID
-    const tableName = TABLE_NAME.QUESTIONS;
-    const existingQuestion = await getItem(tableName, { id });
+    const questionTable = TABLE_NAME.QUESTIONS;
+    const existingQuestion = await getItem(questionTable, { id });
 
     if (!existingQuestion || !existingQuestion.Item) {
       return sendResponse(404, "Question not found", null);
     }
 
-    // Delete the question using its ID
-    const deletedQuestion = await deleteItem(tableName, { id });
+    // Delete the question from the QUESTIONS table
+    const deletedQuestion = await deleteItem(
+      questionTable,
+      { id },
+      { "#id": "id" },
+      "attribute_exists(#id)"
+    );
 
     if (!deletedQuestion.Attributes) {
       return sendResponse(404, "Question not found or already deleted", null);
     }
 
+    // Delete the corresponding solution from the SOLUTIONS table
+    const solutionTable = TABLE_NAME.SOLUTIONS;
+    await deleteItem(
+      solutionTable,
+      { questionId: id },
+      { "#questionId": "questionId" },
+      "attribute_exists(#questionId)"
+    );
+
     return sendResponse(
       200,
-      "Question deleted successfully",
+      "Question and its solution deleted successfully",
       deletedQuestion.Attributes
     );
   } catch (error) {

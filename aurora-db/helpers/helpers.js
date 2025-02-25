@@ -1,5 +1,3 @@
-import slugify from "slugify";
-
 export const sendResponse = (statusCode, message, data) => {
   return {
     statusCode,
@@ -17,8 +15,9 @@ export const sendResponse = (statusCode, message, data) => {
 };
 
 export const generateSlug = (title) => {
-  return slugify(title, {
-    lower: true,
-    strict: true, // remove special chars
-  });
+  return `${title}-223`;
+};
+
+export const getTableName = (name) => {
+  return `${name}`;
 };

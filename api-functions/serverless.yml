@@ -21,6 +21,7 @@ custom:
   questionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUESTIONS_TABLE}
   tagsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TAGS_TABLE}
   companiesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMPANIES_TABLE}
+  solutionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SOLUTIONS_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -60,6 +61,7 @@ provider:
     DB_TOOLS_METRICES_TABLE: db-kompare-dbtools-metrices-${self:provider.stage}
     DB_TOOLS_RANKINGS_TABLE: db-kompare-dbtools-rankings-${self:provider.stage}
     QUESTIONS_TABLE: db-kompare-questions-${self:provider.stage}
+    SOLUTIONS_TABLE: db-kompare-solutions-${self:provider.stage}
     TAGS_TABLE: db-kompare-tags-${self:provider.stage}
     COMPANIES_TABLE: db-kompare-companies-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
@@ -96,8 +98,10 @@ provider:
             - dynamodb:BatchWriteItem
           Resource:
             - ${self:custom.databasesTableArn}/index/byStatus
+            - ${self:custom.solutionsTableArn}/index/byStatus
             - ${self:custom.questionsTableArn}/index/byStatus
             - ${self:custom.questionsTableArn}
+            - ${self:custom.solutionsTableArn}
             - ${self:custom.tagsTableArn}/index/byStatus
             - ${self:custom.tagsTableArn}
             - ${self:custom.companiesTableArn}/index/byStatus

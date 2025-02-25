@@ -14,6 +14,7 @@ export const TABLE_NAME = {
   QUESTIONS: process.env.QUESTIONS_TABLE,
   COMPANIES: process.env.COMPANIES_TABLE,
   TAGS: process.env.TAGS_TABLE,
+  SOLUTIONS: process.env.SOLUTIONS_TABLE,
 };
 
 export const STATUS_CODE = {
@@ -28,6 +29,11 @@ export const DATABASE_STATUS = {
   INACTIVE: "INACTIVE",
 };
 export const DB_TOOL_STATUS = {
+  ALL: "ALL",
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+};
+export const QUERY_STATUS = {
   ALL: "ALL",
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
