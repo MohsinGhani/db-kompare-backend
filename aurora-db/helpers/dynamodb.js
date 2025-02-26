@@ -1,33 +1,55 @@
-import DynamoDB from "aws-sdk/clients/dynamodb.js";
+import {
+  DynamoDBClient,
+  DescribeTableCommand, // For describeTable only
+} from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { getTableName } from "./helpers.js";
-const DynamoDBClient = new DynamoDB.DocumentClient();
 
-export const createItemInDynamoDB = (
+// 1) Create the low-level client:
+const ddbClient = new DynamoDBClient({ region: "eu-west-1" });
+
+// 2) Wrap it with DynamoDBDocument for high-level operations:
+const docClient = DynamoDBDocument.from(ddbClient);
+
+/**
+ * Create a new item in DynamoDB.
+ */
+export const createItemInDynamoDB = async (
   itemAttributes,
   table,
   expressionAttributes,
   conditionExpression
 ) => {
-  const tableParams = {
-    Item: itemAttributes,
+  const params = {
     TableName: getTableName(table),
-    ExpressionAttributeNames: expressionAttributes,
-    ConditionExpression: conditionExpression,
+    Item: itemAttributes,
   };
 
-  return DynamoDBClient.put(tableParams).promise();
+  if (expressionAttributes) {
+    params.ExpressionAttributeNames = expressionAttributes;
+  }
+  if (conditionExpression) {
+    params.ConditionExpression = conditionExpression;
+  }
+
+  return await docClient.put(params);
 };
 
-export const createItemOrUpdate = (itemAttributes, table) => {
-  const tableParams = {
-    Item: itemAttributes,
+/**
+ * Create or update an item in DynamoDB.
+ */
+export const createItemOrUpdate = async (itemAttributes, table) => {
+  const params = {
     TableName: getTableName(table),
+    Item: itemAttributes,
   };
-
-  return DynamoDBClient.put(tableParams).promise();
+  return await docClient.put(params);
 };
 
-export const getItemByQuery = ({
+/**
+ * Query items from DynamoDB using various conditions.
+ */
+export const getItemByQuery = async ({
   table,
   KeyConditionExpression,
   ExpressionAttributeNames,
@@ -56,17 +78,20 @@ export const getItemByQuery = ({
   if (ExclusiveStartKey) {
     params.ExclusiveStartKey = ExclusiveStartKey;
   }
-  if (ScanIndexForward) {
+  if (ScanIndexForward !== undefined) {
     params.ScanIndexForward = ScanIndexForward;
   }
   if (FilterExpression) {
     params.FilterExpression = FilterExpression;
   }
 
-  return DynamoDBClient.query(params).promise();
+  return await docClient.query(params);
 };
 
-export const getItemByIndex = (
+/**
+ * Query by a specific index.
+ */
+export const getItemByIndex = async (
   table,
   IndexName,
   KeyConditionExpression,
@@ -81,28 +106,36 @@ export const getItemByIndex = (
     ExpressionAttributeValues,
   };
 
-  return DynamoDBClient.query(params).promise();
+  return await docClient.query(params);
 };
 
-export const getItem = (table, Key) => {
+/**
+ * Get a single item by primary key.
+ */
+export const getItem = async (table, Key) => {
   const params = {
-    TableName: table,
+    TableName: getTableName(table),
     Key,
   };
-  return DynamoDBClient.get(params).promise();
+  return await docClient.get(params);
 };
 
-export const writeBatchItems = (table, items) => {
+/**
+ * Write multiple items (batch) in a single table.
+ */
+export const writeBatchItems = async (table, items) => {
   const params = {
     RequestItems: {
-      [getTableName(table)]: items,
+      [getTableName(table)]: items, // items must be an array of PutRequest / DeleteRequest objects
     },
   };
-
-  return DynamoDBClient.batchWrite(params).promise();
+  return await docClient.batchWrite(params);
 };
 
-export const batchWriteItems = (tableName, items) => {
+/**
+ * Batch write items with an internal loop to handle >25 items.
+ */
+export const batchWriteItems = async (tableName, items) => {
   const batches = [];
   const BATCH_SIZE = 25;
 
@@ -110,6 +143,7 @@ export const batchWriteItems = (tableName, items) => {
     batches.push(items.slice(i, i + BATCH_SIZE));
   }
 
+  // Process each batch sequentially
   for (const batch of batches) {
     const params = {
       RequestItems: {
@@ -119,45 +153,66 @@ export const batchWriteItems = (tableName, items) => {
       },
     };
 
-    return DynamoDBClient.batchWrite(params).promise();
+    await docClient.batchWrite(params);
   }
 };
 
-export const writeBatchItemsInMultipleTables = (params) => {
-  return DynamoDBClient.batchWrite(params).promise();
+/**
+ * Write batch items spanning multiple tables.
+ */
+export const writeBatchItemsInMultipleTables = async (params) => {
+  // params = { RequestItems: { TableName1: [...], TableName2: [...] }}
+  return await docClient.batchWrite(params);
 };
 
-export const getBatchItems = (table, Keys) => {
+/**
+ * Batch get items from a table given multiple keys.
+ */
+export const getBatchItems = async (table, Keys) => {
   const params = {
     RequestItems: {
       [getTableName(table)]: { Keys },
     },
   };
 
-  return DynamoDBClient.batchGet(params).promise();
+  return await docClient.batchGet(params);
 };
 
-export const scan = (params) => {
+/**
+ * Perform a table scan.
+ */
+export const scan = async (params) => {
   params.TableName = getTableName(params.TableName);
-  return DynamoDBClient.scan(params).promise();
+  return await docClient.scan(params);
 };
 
-export const describeTable = (params) => {
+/**
+ * Describe a DynamoDB table.
+ * (Must use the low-level client + command, as docClient doesn't expose describeTable.)
+ */
+export const describeTable = async (params) => {
   params.TableName = getTableName(params.TableName);
-  return DynamoDBClient.describeTable(params).promise();
+  const command = new DescribeTableCommand(params);
+  return await ddbClient.send(command);
 };
 
-export const deleteItem = (table, Key) => {
+/**
+ * Delete an item by primary key.
+ */
+export const deleteItem = async (table, Key) => {
   const params = {
     TableName: getTableName(table),
     Key,
     ReturnValues: "ALL_OLD",
   };
 
-  return DynamoDBClient.delete(params).promise();
+  return await docClient.delete(params);
 };
 
-export const updateItemInDynamoDB = ({
+/**
+ * Update an item in DynamoDB.
+ */
+export const updateItemInDynamoDB = async ({
   table,
   Key,
   UpdateExpression,
@@ -181,13 +236,20 @@ export const updateItemInDynamoDB = ({
     params.ConditionExpression = ConditionExpression;
   }
 
-  return DynamoDBClient.update(params).promise();
+  return await docClient.update(params);
 };
 
-export const transactWriteInDynamoDB = (items) => {
-  return DynamoDBClient.transactWrite(items).promise();
+/**
+ * Perform a DynamoDB TransactWrite operation.
+ * params = { TransactItems: [ ... ] }
+ */
+export const transactWriteInDynamoDB = async (params) => {
+  return await docClient.transactWrite(params);
 };
 
+/**
+ * Fetch all items by a particular DynamoDB index, paging through until all items are collected.
+ */
 export const fetchAllItemByDynamodbIndex = async ({
   TableName,
   IndexName,
@@ -196,7 +258,7 @@ export const fetchAllItemByDynamodbIndex = async ({
   FilterExpression = null,
   ExpressionAttributeNames = null,
   Limit = null,
-  CountOnly = false, // Add a new parameter to specify if we want only the count
+  CountOnly = false, // If true, just accumulate count instead of returning items
 }) => {
   let lastEvaluatedKey;
   let totalCount = 0;
@@ -216,27 +278,22 @@ export const fetchAllItemByDynamodbIndex = async ({
       if (FilterExpression) {
         params.FilterExpression = FilterExpression;
       }
-
       if (ExpressionAttributeNames) {
         params.ExpressionAttributeNames = ExpressionAttributeNames;
       }
-
       if (Limit) {
         params.Limit = Limit;
       }
-
       if (CountOnly) {
         params.Select = "COUNT"; // Only fetch the count if CountOnly is true
       }
 
-      const response = await DynamoDBClient.query(params).promise();
+      const response = await docClient.query(params);
 
       if (CountOnly) {
-        // Increment the total count from each page
         totalCount += response.Count;
       } else {
-        // Accumulate all the items
-        allItems.push(...response.Items);
+        allItems.push(...(response.Items || []));
       }
 
       lastEvaluatedKey = response.LastEvaluatedKey;
@@ -246,11 +303,14 @@ export const fetchAllItemByDynamodbIndex = async ({
     throw new Error("Error fetching items from DynamoDB");
   }
 
-  return CountOnly ? totalCount : allItems; // Return totalCount or allItems based on CountOnly
+  return CountOnly ? totalCount : allItems;
 };
 
+/**
+ * Fetch multiple items by IDs, given a key name.
+ */
 export const fetchItemsByIds = async (table, ids, keyName) => {
-  const keys = ids.map((id) => ({ [keyName]: id })); // Map IDs to expected key structure
+  const keys = ids.map((id) => ({ [keyName]: id }));
   const params = {
     RequestItems: {
       [table]: {
@@ -258,9 +318,10 @@ export const fetchItemsByIds = async (table, ids, keyName) => {
       },
     },
   };
+
   try {
-    const result = await DynamoDBClient.batchGet(params).promise();
-    return result.Responses[table] || [];
+    const result = await docClient.batchGet(params);
+    return result.Responses?.[table] || [];
   } catch (error) {
     console.error("Error fetching items by IDs:", error);
     return [];

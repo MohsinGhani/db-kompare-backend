@@ -15,8 +15,16 @@ provider:
     - Effect: Allow
       Action:
         - rds-db:connect
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:Query
+        - dynamodb:Scan
       Resource:
         - Fn::Sub: "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db-cluster:${AuroraCluster}"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-questions-dev"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-solutions-dev"
   environment:
     PG_HOST: ${self:custom.outputs.AuroraClusterEndpoint}
     PG_USER: "dbadmin"
@@ -44,10 +52,11 @@ plugins:
   - serverless-prune-plugin
 
 package:
-  patterns:
-    - "node_modules/@prisma/client/**"
-    - "node_modules/aws-sdk/**"
-    - "node_modules/prisma/**"
+  # excludeDevDependencies: true
+  # patterns:
+  #   - "node_modules/@prisma/client/**"
+  #   - "node_modules/aws-sdk/**"
+  #   - "node_modules/prisma/**"
 
 functions:
   # queryDB:
@@ -122,6 +131,14 @@ functions:
     events:
       - http:
           path: /run-solution
+          method: POST
+          private: true
+          cors: true
+  runSubmission:
+    handler: functions/queries/runSubmission.handler
+    events:
+      - http:
+          path: /run-submission
           method: POST
           private: true
           cors: true

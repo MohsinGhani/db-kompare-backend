@@ -2,6 +2,7 @@
 
 export const TABLE_NAME = {
   QUESTIONS: "db-kompare-questions-dev",
+  SOLUTIONS: "db-kompare-solutions-dev",
 };
 
 export const LessonCategory = {
