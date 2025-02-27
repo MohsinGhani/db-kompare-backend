@@ -283,6 +283,36 @@ resources:
             Projection:
               ProjectionType: ALL # Include all attributes in the index
 
+    Submissions:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-submissions-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S # Primary key for each submission
+          - AttributeName: userId
+            AttributeType: S # To associate the submission with a user
+          - AttributeName: questionId
+            AttributeType: S # To associate the submission with a user
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH # Primary (partition) key
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byUserId
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byQuestionId
+            KeySchema:
+              - AttributeName: questionId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
     Companies:
       Type: AWS::DynamoDB::Table
       Properties:

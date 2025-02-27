@@ -15,6 +15,7 @@ export const TABLE_NAME = {
   COMPANIES: process.env.COMPANIES_TABLE,
   TAGS: process.env.TAGS_TABLE,
   SOLUTIONS: process.env.SOLUTIONS_TABLE,
+  SUBMISSIONS: process.env.SUBMISSIONS_TABLE,
 };
 
 export const STATUS_CODE = {

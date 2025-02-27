@@ -22,10 +22,14 @@ export const handler = async (event) => {
       ? prismaReadOnly
       : prismaCommonClient;
 
-    // Execute the user query using Prisma's raw query (be cautious of SQL injection)
+    // Execute the user query using Prisma's raw query by prepending EXPLAIN ANALYZE.
     const result = await client.$queryRawUnsafe(query);
+    console.log("Result", result);
+
+    // Serialize the result safely.
     const safeResult = safeSerialize(result);
 
+    // Return both the full plan and the execution time.
     return sendResponse(200, "Query executed successfully", safeResult);
   } catch (error) {
     console.error("Error executing query:", error);

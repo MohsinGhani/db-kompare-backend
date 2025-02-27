@@ -12,11 +12,13 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.751.0",
+    "@aws-sdk/lib-dynamodb": "^3.751.0",
     "@prisma/client": "^6.3.1",
     "dotenv": "^16.4.7",
     "lodash": "^4.17.21",
     "serverless-dotenv-plugin": "^6.0.0",
-    "serverless-pseudo-parameters": "^2.6.1"
+    "serverless-pseudo-parameters": "^2.6.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "prisma": "^6.3.1",

@@ -28,3 +28,6 @@ export const safeSerialize = (data) =>
       typeof value === "bigint" ? value.toString() : value
     )
   );
+export const getTimestamp = () => {
+  return new Date().getTime();
+};

@@ -25,6 +25,7 @@ provider:
         - Fn::Sub: "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db-cluster:${AuroraCluster}"
         - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-questions-dev"
         - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-solutions-dev"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-submissions-dev"
   environment:
     PG_HOST: ${self:custom.outputs.AuroraClusterEndpoint}
     PG_USER: "dbadmin"
@@ -50,13 +51,6 @@ plugins:
   - serverless-dotenv-plugin
   - serverless-offline
   - serverless-prune-plugin
-
-package:
-  # excludeDevDependencies: true
-  # patterns:
-  #   - "node_modules/@prisma/client/**"
-  #   - "node_modules/aws-sdk/**"
-  #   - "node_modules/prisma/**"
 
 functions:
   # queryDB:

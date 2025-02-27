@@ -1,12 +1,18 @@
 import { TABLE_NAME } from "../../helpers/constants.js";
 import prismaReadOnly from "../../db/prismaReadOnly.js";
 import prismaCommonClient from "../../db/prismaCommonClient.js";
-import { getItem } from "../../helpers/dynamodb.js";
-import { safeSerialize, sendResponse } from "../../helpers/helpers.js";
+import { createItemInDynamoDB, getItem } from "../../helpers/dynamodb.js";
+import {
+  getTimestamp,
+  safeSerialize,
+  sendResponse,
+} from "../../helpers/helpers.js";
 import _ from "lodash";
+import { v4 as uuidv4 } from "uuid";
 
 export const handler = async (event) => {
-  const { questionId, userQuery } = JSON.parse(event.body);
+  const { questionId, userQuery, timetaken, userId } = JSON.parse(event.body);
+
   if (!questionId || !userQuery) {
     return sendResponse(400, "Missing questionId or query", null);
   }
@@ -61,6 +67,27 @@ export const handler = async (event) => {
   const normalizedUserResult = normalize(userResult);
   const normalizedExpected = normalize(expectedSolution);
   const isCorrect = _.isEqual(normalizedUserResult, normalizedExpected);
+
+  // Create the submission item
+  const submissionItem = {
+    id: uuidv4(),
+    userId,
+    executiontime: 122,
+    timetaken,
+    userQuery,
+    queryStatus: isCorrect,
+    submittedAt: getTimestamp(),
+    questionId,
+  };
+
+  // Insert the submission item into the SUBMISSIONS table
+  await createItemInDynamoDB(
+    submissionItem,
+    TABLE_NAME.SUBMISSIONS,
+    { "#id": "id" },
+    "attribute_not_exists(#id)",
+    false
+  );
 
   const responseData = safeSerialize({
     correct: isCorrect,

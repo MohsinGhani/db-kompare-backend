@@ -22,6 +22,7 @@ custom:
   tagsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TAGS_TABLE}
   companiesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMPANIES_TABLE}
   solutionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SOLUTIONS_TABLE}
+  submissionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SUBMISSIONS_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -64,6 +65,7 @@ provider:
     SOLUTIONS_TABLE: db-kompare-solutions-${self:provider.stage}
     TAGS_TABLE: db-kompare-tags-${self:provider.stage}
     COMPANIES_TABLE: db-kompare-companies-${self:provider.stage}
+    SUBMISSIONS_TABLE: db-kompare-submissions-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -101,6 +103,9 @@ provider:
             - ${self:custom.solutionsTableArn}/index/byStatus
             - ${self:custom.questionsTableArn}/index/byStatus
             - ${self:custom.questionsTableArn}
+            - ${self:custom.submissionsTableArn}
+            - ${self:custom.submissionsTableArn}/index/byUserId
+            - ${self:custom.submissionsTableArn}/index/byQuestionId
             - ${self:custom.solutionsTableArn}
             - ${self:custom.tagsTableArn}/index/byStatus
             - ${self:custom.tagsTableArn}
@@ -230,6 +235,15 @@ functions:
       - http:
           path: /get-dbtool-rankings
           method: post
+          private: true
+          cors: true
+
+  getSubmissions:
+    handler: functions/submissions/getSubmissions.handler
+    events:
+      - http:
+          path: /get-submissions
+          method: get
           private: true
           cors: true
 
