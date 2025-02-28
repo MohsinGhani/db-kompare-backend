@@ -247,6 +247,15 @@ functions:
           private: true
           cors: true
 
+  getUserSubmissions:
+    handler: functions/submissions/getUserSubmissions.handler
+    events:
+      - http:
+          path: /get-user-submissions
+          method: get
+          private: true
+          cors: true
+
   getBlogs:
     handler: functions/blogs/getBlogs.handler
     events:

@@ -27,11 +27,11 @@ export const handler = async (event) => {
   const client = questionResult?.Item?.access?.includes("read-only")
     ? prismaReadOnly
     : prismaCommonClient;
-
-  let userResult;
+  let resultObj;
   try {
+    const safeQuery = `SELECT readonly_schema.run_query_with_timing('${userQuery}') AS result`;
     // $queryRawUnsafe is used here for demonstration; ensure you handle SQL injection risks!
-    userResult = await client.$queryRawUnsafe(userQuery);
+    [resultObj] = await client.$queryRawUnsafe(safeQuery);
   } catch (error) {
     console.error("Error executing query:", error);
     const match = error.message.match(/Message:\s*`([^`]+)`/);
@@ -64,7 +64,7 @@ export const handler = async (event) => {
     return data;
   };
 
-  const normalizedUserResult = normalize(userResult);
+  const normalizedUserResult = normalize(resultObj?.result?.data);
   const normalizedExpected = normalize(expectedSolution);
   const isCorrect = _.isEqual(normalizedUserResult, normalizedExpected);
 
@@ -72,7 +72,7 @@ export const handler = async (event) => {
   const submissionItem = {
     id: uuidv4(),
     userId,
-    executiontime: 122,
+    executiontime: resultObj?.result?.executionTime,
     timetaken,
     userQuery,
     queryStatus: isCorrect,
