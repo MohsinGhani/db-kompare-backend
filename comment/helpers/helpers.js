@@ -30,13 +30,13 @@ export const getItem = (table, Key) => {
 };
 
 export const getBatchItems = async (table, Keys) => {
-  const promises = Keys.map(async (databaseId) => {
+  const promises = Keys.map(async (entityId) => {
     const params = {
       TableName: getTableName(table),
-      IndexName: "byDatabaseId",
-      KeyConditionExpression: "databaseId = :databaseId",
+      IndexName: "byEntityId",
+      KeyConditionExpression: "entityId = :entityId",
       ExpressionAttributeValues: {
-        ":databaseId": databaseId,
+        ":entityId": entityId,
       },
     };
 

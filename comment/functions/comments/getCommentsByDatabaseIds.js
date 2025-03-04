@@ -1,5 +1,5 @@
 import { getBatchItems, getItem, sendResponse } from "../../helpers/helpers.js";
-import { TABLE_NAME } from "../../helpers/constants.js";
+import { ENTITY_TYPE, TABLE_NAME } from "../../helpers/constants.js";
 
 export const handler = async (event, context, callback) => {
   try {
@@ -7,13 +7,13 @@ export const handler = async (event, context, callback) => {
 
     // Validate IDs
     if (!ids || !Array.isArray(ids)) {
-      return sendResponse(400, "An array of database IDs is required", null);
+      return sendResponse(400, "An array of entity IDs is required", null);
     }
 
     if (ids.length > 5) {
       return sendResponse(
         400,
-        "You can request a maximum of 5 databases at a time.",
+        "You can request a maximum of 5 entities at a time.",
         null
       );
     }
@@ -45,15 +45,11 @@ export const handler = async (event, context, callback) => {
     // Add database details for each comment
     const commentPromises = Array.from(commentMap.values()).map(
       async (comment) => {
-        const createdByDetails = await getDatabaseDetailsById(
-          comment.createdBy
-        );
+        const createdByDetails = await getInfoById(comment.createdBy);
         comment.createdBy = createdByDetails;
 
         const replyPromises = comment.replies.map(async (reply) => {
-          const replyCreatedByDetails = await getDatabaseDetailsById(
-            reply.createdBy
-          );
+          const replyCreatedByDetails = await getInfoById(reply.createdBy);
           return { ...reply, createdBy: replyCreatedByDetails };
         });
 
@@ -72,7 +68,7 @@ export const handler = async (event, context, callback) => {
 };
 
 // Get database name
-const getDatabaseDetailsById = async (userId) => {
+const getInfoById = async (userId) => {
   const key = {
     id: userId,
   };
@@ -86,7 +82,7 @@ const getDatabaseDetailsById = async (userId) => {
 
     return "Unknown"; // Fallback if the database name is not found
   } catch (error) {
-    console.error(`Error fetching database name for ID ${userId}:`, error);
+    console.error(`Error fetching user name for ID ${userId}:`, error);
     throw error;
   }
 };

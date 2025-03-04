@@ -456,7 +456,7 @@ resources:
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
-          - AttributeName: databaseId
+          - AttributeName: entityId
             AttributeType: S
           - AttributeName: repliedTo
             AttributeType: S
@@ -471,9 +471,9 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
-          - IndexName: byDatabaseId
+          - IndexName: byEntityId
             KeySchema:
-              - AttributeName: databaseId
+              - AttributeName: entityId
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
