@@ -1,9 +1,10 @@
 import { TABLE_NAME } from "../../helpers/constants.js";
+import { fetchAllItemByDynamodbIndex } from "../../helpers/dynamodb.js";
 import {
-  getItem,
-  fetchAllItemByDynamodbIndex,
-} from "../../helpers/dynamodb.js";
-import { sendResponse } from "../../helpers/helpers.js";
+  getTwoDaysAgoDate,
+  getYesterdayDate,
+  sendResponse,
+} from "../../helpers/helpers.js";
 import { fetchDbToolById } from "../common/fetchDbToolById.js";
 import { fetchDbToolCategoryDetail } from "../common/fetchDbToolCategoryDetail.js";
 
@@ -44,7 +45,7 @@ export const handler = async (event) => {
       }
     }
 
-    // Define the base query parameters
+    // Define the base query parameters for DB Tools metrics
     let queryParams = {
       TableName: TABLE_NAME.DB_TOOLS_METRICES,
       IndexName: "byStatusAndDate",
@@ -66,11 +67,67 @@ export const handler = async (event) => {
       queryParams.ExpressionAttributeValues[":endDate"] = endDate;
     }
 
-    // Fetch items from DynamoDB
+    // Fetch DB Tools metrics from DynamoDB
     const items = await fetchAllItemByDynamodbIndex(queryParams);
     const transformedData = await transformData(items);
 
-    const filteredData = transformedData.filter((db) => db.ui_display !== "NO");
+    // --- Ranking Section for DB Tool Metrics ---
+
+    // Helper to fetch ranking data for a given date
+    const getRankingDataForDate = async (dateStr) => {
+      const rankingQueryParams = {
+        TableName: TABLE_NAME.DB_TOOLS_RANKINGS, // Ensure this constant is defined in your constants file
+        IndexName: "byStatusAndDate",
+        KeyConditionExpression: "#includeMe = :includeMeVal AND #date = :date",
+        ExpressionAttributeNames: {
+          "#includeMe": "includeMe",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":includeMeVal": "YES",
+          ":date": dateStr,
+        },
+      };
+      return await fetchAllItemByDynamodbIndex(rankingQueryParams);
+    };
+
+    let rankingResult = await getRankingDataForDate(getYesterdayDate);
+
+    // If no ranking found for yesterday, try two days ago
+    if (!rankingResult || rankingResult.length === 0) {
+      rankingResult = await getRankingDataForDate(getTwoDaysAgoDate);
+    }
+
+    // Build a lookup map for ranking (dbToolId -> rank)
+    const rankingMap = {};
+    if (rankingResult && rankingResult.length > 0) {
+      // Assuming one ranking record per day; use the first record
+      const rankingData = rankingResult[0];
+      if (rankingData.rankings && Array.isArray(rankingData.rankings)) {
+        rankingData.rankings.forEach((r) => {
+          rankingMap[r.dbtool_id] = r.rank;
+        });
+      }
+    }
+
+    // Sort the transformedData based on ranking.
+    // Tools without a ranking entry are assigned a high default value.
+    transformedData.sort((a, b) => {
+      const rankA =
+        rankingMap[a.dbToolId] !== undefined
+          ? rankingMap[a.dbToolId]
+          : Number.MAX_SAFE_INTEGER;
+      const rankB =
+        rankingMap[b.dbToolId] !== undefined
+          ? rankingMap[b.dbToolId]
+          : Number.MAX_SAFE_INTEGER;
+      return rankA - rankB;
+    });
+
+    // Filter out items with ui_display explicitly set to "NO"
+    const filteredData = transformedData.filter(
+      (tool) => tool.ui_display !== "NO"
+    );
 
     return sendResponse(200, "Fetch metrics successfully", filteredData);
   } catch (error) {
@@ -82,7 +139,7 @@ export const handler = async (event) => {
 };
 
 const transformData = async (items) => {
-  // Group items by `dbToolId`
+  // Group items by `dbtool_id`
   const groupedData = items.reduce((acc, item) => {
     const {
       dbtool_id: dbToolId,
@@ -96,7 +153,7 @@ const transformData = async (items) => {
     if (!acc[dbToolId]) {
       acc[dbToolId] = {
         dbToolId,
-        categoryDetail: "Fetching...", // Placeholder for the category detail
+        categoryDetail: "Fetching...", // Placeholder for category detail
         metrics: [],
       };
     }
@@ -108,13 +165,13 @@ const transformData = async (items) => {
       ui_popularity,
     });
 
-    // Add category_id for fetching category detail later
+    // Save the category ID for later use
     acc[dbToolId].categoryId = category_id;
 
     return acc;
   }, {});
 
-  // Fetch category details for each unique dbToolId
+  // Fetch category details and DB tool names for each unique dbToolId
   const dbToolIds = Object.keys(groupedData);
   await Promise.all(
     dbToolIds.map(async (dbToolId) => {

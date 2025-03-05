@@ -37,7 +37,12 @@ export const QUERY_STATUS = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
 };
-
+export const METRICES_TYPE = {
+  DAY: "DAY",
+  WEEK: "WEEK",
+  MONTH: "MONTH",
+  YEAR: "YEAR",
+};
 export const USER_ROLE = {
   ADMIN: "ADMIN",
   VENDOR: "VENDOR",

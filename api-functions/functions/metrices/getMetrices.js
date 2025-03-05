@@ -1,19 +1,25 @@
-import { TABLE_NAME } from "../../helpers/constants.js";
+import { METRICES_TYPE, TABLE_NAME } from "../../helpers/constants.js";
 import {
   getItem,
   fetchAllItemByDynamodbIndex,
 } from "../../helpers/dynamodb.js";
-import { sendResponse } from "../../helpers/helpers.js";
+import {
+  getTwoDaysAgoDate,
+  getYesterdayDate,
+  sendResponse,
+} from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
     let startDate = "";
     let endDate = "";
+    let metricType = "";
     // Parse the request body
     if (event.body) {
       const parsedBody = JSON.parse(event.body);
       startDate = parsedBody.startDate;
       endDate = parsedBody.endDate;
+      metricType = parsedBody.metricType;
     } else if (event.queryStringParameters) {
       startDate = event.queryStringParameters.startDate;
       endDate = event.queryStringParameters.endDate;
@@ -42,7 +48,7 @@ export const handler = async (event) => {
       }
     }
 
-    // Define the base query parameters
+    // Define the base query parameters for metrices table
     let queryParams = {
       TableName: TABLE_NAME.METRICES,
       IndexName: "byStatusAndDate",
@@ -64,12 +70,65 @@ export const handler = async (event) => {
       queryParams.ExpressionAttributeValues[":endDate"] = endDate;
     }
 
-    // Fetch items from DynamoDB
+    // Fetch items from DynamoDB (metrices data)
     const items = await fetchAllItemByDynamodbIndex(queryParams);
     const transformedData = await transformData(items);
 
+    // --- Ranking section ---
+
+    // Helper to fetch ranking data for a given date (exact match)
+    const getRankingDataForDate = async (dateStr) => {
+      const rankingQueryParams = {
+        TableName: TABLE_NAME.DATABASE_RANKINGS,
+        IndexName: "byStatusAndDate",
+        KeyConditionExpression: "#includeMe = :includeMeVal AND #date = :date",
+        ExpressionAttributeNames: {
+          "#includeMe": "includeMe",
+          "#date": "date",
+        },
+        ExpressionAttributeValues: {
+          ":includeMeVal": "YES",
+          ":date": dateStr,
+        },
+      };
+      return await fetchAllItemByDynamodbIndex(rankingQueryParams);
+    };
+
+    let rankingResult = await getRankingDataForDate(getYesterdayDate);
+
+    // If no ranking found for yesterday, try two days ago
+    if (!rankingResult || rankingResult.length === 0) {
+      rankingResult = await getRankingDataForDate(getTwoDaysAgoDate);
+    }
+
+    // Build a lookup map for ranking (database_id -> rank)
+    const rankingMap = {};
+    if (rankingResult && rankingResult.length > 0) {
+      // Assuming one ranking record per day; use the first record
+      const rankingData = rankingResult[0];
+      if (rankingData.rankings && Array.isArray(rankingData.rankings)) {
+        rankingData.rankings.forEach((r) => {
+          rankingMap[r.database_id] = r.rank;
+        });
+      }
+    }
+
+    // --- Sorting the metrics data based on the ranking ---
+    // Databases without a ranking entry get a default high number to push them to the end.
+    transformedData.sort((a, b) => {
+      const rankA =
+        rankingMap[a.databaseId] !== undefined
+          ? rankingMap[a.databaseId]
+          : Number.MAX_SAFE_INTEGER;
+      const rankB =
+        rankingMap[b.databaseId] !== undefined
+          ? rankingMap[b.databaseId]
+          : Number.MAX_SAFE_INTEGER;
+      return rankA - rankB;
+    });
+
     // Filter out objects that explicitly contain "ui_display": "NO"
-    const filteredData = transformedData.filter(((db) => db.ui_display !== "NO"));
+    const filteredData = transformedData.filter((db) => db.ui_display !== "NO");
 
     return sendResponse(200, "Fetch metrices successfully", filteredData);
   } catch (error) {
@@ -80,7 +139,7 @@ export const handler = async (event) => {
   }
 };
 
-// Get database name
+// Get database name from the databases table
 const getDatabaseNameById = async (databaseId) => {
   const key = {
     id: databaseId,
@@ -98,7 +157,7 @@ const getDatabaseNameById = async (databaseId) => {
 };
 
 const transformData = async (items) => {
-  // Group items by `databaseId`
+  // Group items by `database_id`
   const groupedData = items.reduce((acc, item) => {
     const { database_id: databaseId, date, popularity, ui_popularity } = item;
 
