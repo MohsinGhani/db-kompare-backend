@@ -700,7 +700,7 @@ resources:
           - COGNITO
           - Google
           - GitHub
-          # - LinkedIn
+          - LinkedIn
 
     GoogleIdentityProvider:
       Type: AWS::Cognito::UserPoolIdentityProvider
@@ -735,25 +735,25 @@ resources:
           attributes_url: https://b8iy915ig0.execute-api.eu-west-1.amazonaws.com/dev/oauth/github/user-info
           jwks_uri: https://b8iy915ig0.execute-api.eu-west-1.amazonaws.com/dev/oauth/github/access-token
           attributes_request_method: GET
-    # LinkedInIdentityProvider:
-    #   Type: AWS::Cognito::UserPoolIdentityProvider
-    #   Properties:
-    #     ProviderName: LinkedIn
-    #     ProviderType: OIDC
-    #     UserPoolId: !Ref DbKompare
-    #     AttributeMapping:
-    #       email: email
-    #       name: name
-    #     ProviderDetails:
-    #       client_id: ${env:LINKEDIN_CLIENT_ID}
-    #       client_secret: ${env:LINKEDIN_CLIENT_SECRET}
-    #       authorize_scopes: "profile email openid"
-    #       oidc_issuer: https://www.linkedin.com
-    #       authorize_url: https://www.linkedin.com/oauth/v2/authorization
-    #       token_url: https://www.linkedin.com/oauth/v2/accessToken
-    #       attributes_url: https://api.linkedin.com/v2/userinfo
-    #       jwks_uri: https://www.linkedin.com/oauth/openid/jwks
-    #       attributes_request_method: GET
+    LinkedInIdentityProvider:
+      Type: AWS::Cognito::UserPoolIdentityProvider
+      Properties:
+        ProviderName: LinkedIn
+        ProviderType: OIDC
+        UserPoolId: !Ref DbKompare
+        AttributeMapping:
+          email: email
+          name: name
+        ProviderDetails:
+          client_id: ${env:LINKEDIN_CLIENT_ID}
+          client_secret: ${env:LINKEDIN_CLIENT_SECRET}
+          authorize_scopes: "profile email openid"
+          oidc_issuer: https://www.linkedin.com/oauth
+          authorize_url: https://www.linkedin.com/oauth/v2/authorization
+          token_url: https://www.linkedin.com/oauth/v2/accessToken
+          attributes_url: https://api.linkedin.com/v2/userinfo
+          jwks_uri: https://www.linkedin.com/oauth/openid/jwks
+          attributes_request_method: GET
 
     DBKompareUserPoolDomain:
       Type: AWS::Cognito::UserPoolDomain

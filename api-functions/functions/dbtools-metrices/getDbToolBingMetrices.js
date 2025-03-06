@@ -38,7 +38,8 @@ export const handler = async (event) => {
     // Check if all DB Tools are processed then reset the tracking table for databases to process again
     if (
       processed_db_tools.length === 0 &&
-      mergedDbTools.length === dbTools.length
+      mergedDbTools.length === dbTools.length &&
+      processed_databases.length === 0
     ) {
       // No DB Tools are processed yet
       console.log("No DB Tools are processed yet...");

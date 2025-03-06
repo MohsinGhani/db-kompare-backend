@@ -5,6 +5,8 @@ import {
 } from "../../helpers/dynamodb.js";
 import {
   getTwoDaysAgoDate,
+  getUTCTwoDaysAgoDate,
+  getUTCYesterdayDate,
   getYesterdayDate,
   sendResponse,
 } from "../../helpers/helpers.js";
@@ -94,11 +96,11 @@ export const handler = async (event) => {
       return await fetchAllItemByDynamodbIndex(rankingQueryParams);
     };
 
-    let rankingResult = await getRankingDataForDate(getYesterdayDate);
+    let rankingResult = await getRankingDataForDate(getUTCYesterdayDate);
 
     // If no ranking found for yesterday, try two days ago
     if (!rankingResult || rankingResult.length === 0) {
-      rankingResult = await getRankingDataForDate(getTwoDaysAgoDate);
+      rankingResult = await getRankingDataForDate(getUTCTwoDaysAgoDate);
     }
 
     // Build a lookup map for ranking (database_id -> rank)

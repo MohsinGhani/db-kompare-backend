@@ -92,8 +92,17 @@ export const getYesterdayDate = moment()
   .format("YYYY-MM-DD");
 
 export const getTodayDate = moment().format("YYYY-MM-DD");
-
 export const getTwoDaysAgoDate = moment()
+  .subtract(2, "days")
+  .format("YYYY-MM-DD");
+
+export const getUTCYesterdayDate = moment
+  .utc()
+  .subtract(1, "days")
+  .format("YYYY-MM-DD");
+export const getUTCTodayDate = moment.utc().format("YYYY-MM-DD");
+export const getUTCTwoDaysAgoDate = moment
+  .utc()
   .subtract(2, "days")
   .format("YYYY-MM-DD");
 

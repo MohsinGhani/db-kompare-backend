@@ -39,11 +39,10 @@ export const handler = async (event) => {
     const processed_db_tools = trackingItem?.processed_db_tools || [];
     const mergedDbTools = trackingItem?.merged_db_tools || [];
 
-    console.log("Tracking item:", trackingItem);
-
     if (
       processed_db_tools.length === 0 &&
-      mergedDbTools.length === dbTools.length
+      mergedDbTools.length === dbTools.length &&
+      processed_databases.length === 0
     ) {
       // No DB Tools are processed yet
       console.log("No DB Tools are processed yet...");
@@ -376,11 +375,21 @@ const processRemainingDbTools = async (dbTools) => {
         totalResults: 99,
       }));
 
+      const previousGoogleData = metric?.googleData || [];
+      let updatedPopularity = {};
+
       // Calculate updated popularity metrics
-      const updatedPopularity = {
-        ...metric?.popularity,
-        googleScore: calculateGooglePopularity(googleData),
-      };
+      if (previousGoogleData && previousGoogleData.length > 0) {
+        updatedPopularity = {
+          ...metric?.popularity,
+          googleScore: calculateGooglePopularity(previousGoogleData),
+        };
+      } else {
+        updatedPopularity = {
+          ...metric?.popularity,
+          googleScore: calculateGooglePopularity(googleData),
+        };
+      }
 
       // Update DynamoDB with placeholder data
       await updateItemInDynamoDB({
