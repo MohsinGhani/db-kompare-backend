@@ -225,20 +225,20 @@ resources:
         DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: id
-            AttributeType: S  # String (unique identifier)
+            AttributeType: S # String (unique identifier)
           - AttributeName: status
-            AttributeType: S  # String (e.g., "active", "inactive")
+            AttributeType: S # String (e.g., "active", "inactive")
         KeySchema:
           - AttributeName: id
-            KeyType: HASH  # Partition key
+            KeyType: HASH # Partition key
         BillingMode: PAY_PER_REQUEST
         GlobalSecondaryIndexes:
           - IndexName: byStatus
             KeySchema:
               - AttributeName: status
-                KeyType: HASH  # Partition key for the GSI
+                KeyType: HASH # Partition key for the GSI
             Projection:
-              ProjectionType: ALL  # Project all attributes into the index
+              ProjectionType: ALL # Project all attributes into the index
     Questions:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -247,17 +247,17 @@ resources:
         DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: id
-            AttributeType: S         # Primary key as string
+            AttributeType: S # Primary key as string
           - AttributeName: status
-            AttributeType: S         # Attribute for global secondary index
+            AttributeType: S # Attribute for global secondary index
         KeySchema:
           - AttributeName: id
-            KeyType: HASH            # Primary partition key
+            KeyType: HASH # Primary partition key
         GlobalSecondaryIndexes:
           - IndexName: byStatus
             KeySchema:
               - AttributeName: status
-                KeyType: HASH        # GSI partition key to query by status
+                KeyType: HASH # GSI partition key to query by status
             Projection:
               ProjectionType: ALL
     Companies:
@@ -268,17 +268,17 @@ resources:
         DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: id
-            AttributeType: S         # Primary key as string
+            AttributeType: S # Primary key as string
           - AttributeName: status
-            AttributeType: S         # Used for the global secondary index
+            AttributeType: S # Used for the global secondary index
         KeySchema:
           - AttributeName: id
-            KeyType: HASH            # Primary partition key
+            KeyType: HASH # Primary partition key
         GlobalSecondaryIndexes:
           - IndexName: byStatus
             KeySchema:
               - AttributeName: status
-                KeyType: HASH        # GSI partition key for querying companies by status
+                KeyType: HASH # GSI partition key for querying companies by status
             Projection:
               ProjectionType: ALL
 
@@ -311,7 +311,7 @@ resources:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
 
-    # DB Tool Metrices Table    
+    # DB Tool Metrices Table
     DBToolMetrices:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -338,8 +338,8 @@ resources:
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
-        BillingMode: PAY_PER_REQUEST   
-         
+        BillingMode: PAY_PER_REQUEST
+
     DatabaseRankings:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -367,7 +367,7 @@ resources:
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
-        
+
     DbToolRankings:
       Type: AWS::DynamoDB::Table
       Properties:
