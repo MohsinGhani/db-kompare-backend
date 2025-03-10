@@ -1,472 +1,203 @@
-// src/aggregates/handler.js
+import moment from "moment";
+import { createItemOrUpdate, getItemByQuery } from "../../helpers/dynamodb.js";
+import { TABLE_NAME } from "../../helpers/constants.js";
 
-const AWS = require("aws-sdk");
-const dynamoDB = new AWS.DynamoDB.DocumentClient();
+const METRICES_TABLE = TABLE_NAME.METRICES; // e.g., "db-kompare-metrices-prod"
+const AGGREGATED_TABLE = TABLE_NAME.DATABASE_AGGREGATED; // e.g., "db-kompare-database-aggregated-prod"
 
-const SOURCE_TABLE = process.env.SOURCE_TABLE;
-const AGGREGATION_TABLE = process.env.AGGREGATION_TABLE;
-
-// Helper function to format date to YYYY-MM-DD
-function formatDate(date) {
-  return date.toISOString().split("T")[0];
-}
-
-// Get week number from date
-function getWeekNumber(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const week =
-    Math.floor(
-      (d.getTime() - new Date(d.getFullYear(), 0, 4).getTime()) / 86400000 / 7
-    ) + 1;
-  return week.toString().padStart(2, "0");
-}
-
-// Get the first and last day of a week
-function getWeekDateRange(year, weekNum) {
-  const firstDayOfYear = new Date(year, 0, 1);
-  const daysOffset = (weekNum - 1) * 7;
-
-  const firstDateOfWeek = new Date(
-    year,
-    0,
-    1 + daysOffset - (firstDayOfYear.getDay() || 7) + 1
-  );
-
-  const lastDateOfWeek = new Date(firstDateOfWeek);
-  lastDateOfWeek.setDate(lastDateOfWeek.getDate() + 6);
-
-  return {
-    startDate: formatDate(firstDateOfWeek),
-    endDate: formatDate(lastDateOfWeek),
-  };
-}
-
-// Get the first and last day of a month
-function getMonthDateRange(year, month) {
-  const firstDay = new Date(year, month - 1, 1);
-  const lastDay = new Date(year, month, 0);
-
-  return {
-    startDate: formatDate(firstDay),
-    endDate: formatDate(lastDay),
-  };
-}
-
-// Get the first and last day of a year
-function getYearDateRange(year) {
-  const firstDay = new Date(year, 0, 1);
-  const lastDay = new Date(year, 11, 31);
-
-  return {
-    startDate: formatDate(firstDay),
-    endDate: formatDate(lastDay),
-  };
-}
-
-// Get data from source table for a date range
-async function getDataForDateRange(startDate, endDate) {
-  // Initialize parameters for query
-  const params = {
-    TableName: SOURCE_TABLE,
-    IndexName: "byStatusAndDate",
-    KeyConditionExpression:
-      "includeMe = :status AND date BETWEEN :startDate AND :endDate",
-    ExpressionAttributeValues: {
-      ":status": "YES",
-      ":startDate": startDate,
-      ":endDate": endDate,
-    },
-  };
-
-  let items = [];
-  let lastEvaluatedKey = null;
-
-  // Paginate through results if needed
-  do {
-    if (lastEvaluatedKey) {
-      params.ExclusiveStartKey = lastEvaluatedKey;
-    }
-
-    const result = await dynamoDB.query(params).promise();
-    items = items.concat(result.Items || []);
-    lastEvaluatedKey = result.LastEvaluatedKey;
-  } while (lastEvaluatedKey);
-
-  return items;
-}
-
-// Calculate aggregates from a set of items
-function calculateAggregates(items) {
-  if (!items || items.length === 0) {
-    return null;
-  }
-
-  const popularityAggregates = {
-    bingScore: 0,
-    githubScore: 0,
-    googleScore: 0,
-    stackoverflowScore: 0,
-  };
-
-  const uiPopularityAggregates = {
-    bingScore: 0,
-    githubScore: 0,
-    googleScore: 0,
-    stackoverflowScore: 0,
-    totalScore: 0,
-  };
-
-  // Sum up all values
-  items.forEach((item) => {
-    // Aggregate popularity metrics
-    if (item.popularity) {
-      popularityAggregates.bingScore += item.popularity.bingScore || 0;
-      popularityAggregates.githubScore += item.popularity.githubScore || 0;
-      popularityAggregates.googleScore += item.popularity.googleScore || 0;
-      popularityAggregates.stackoverflowScore +=
-        item.popularity.stackoverflowScore || 0;
-    }
-
-    // Aggregate UI popularity metrics
-    if (item.ui_popularity) {
-      uiPopularityAggregates.bingScore += item.ui_popularity.bingScore || 0;
-      uiPopularityAggregates.githubScore += item.ui_popularity.githubScore || 0;
-      uiPopularityAggregates.googleScore += item.ui_popularity.googleScore || 0;
-      uiPopularityAggregates.stackoverflowScore +=
-        item.ui_popularity.stackoverflowScore || 0;
-      uiPopularityAggregates.totalScore += item.ui_popularity.totalScore || 0;
-    }
-  });
-
-  const count = items.length;
-
-  // Calculate averages
-  const avgPopularity = {
-    bingScore: popularityAggregates.bingScore / count,
-    githubScore: popularityAggregates.githubScore / count,
-    googleScore: popularityAggregates.googleScore / count,
-    stackoverflowScore: popularityAggregates.stackoverflowScore / count,
-  };
-
-  const avgUiPopularity = {
-    bingScore: uiPopularityAggregates.bingScore / count,
-    githubScore: uiPopularityAggregates.githubScore / count,
-    googleScore: uiPopularityAggregates.googleScore / count,
-    stackoverflowScore: uiPopularityAggregates.stackoverflowScore / count,
-    totalScore: uiPopularityAggregates.totalScore / count,
-  };
-
-  // Return all the aggregated data
-  return {
-    popularity: {
-      total: popularityAggregates,
-      average: avgPopularity,
-    },
-    ui_popularity: {
-      total: uiPopularityAggregates,
-      average: avgUiPopularity,
-    },
-    count,
-  };
-}
-
-// Save aggregated data to the aggregation table
-async function saveAggregatedData(aggregateKey, dateRange, aggregatedData) {
-  if (!aggregatedData) return;
-
-  // Create batch request items
-  const requestItems = [];
-
-  // Add popularity item
-  requestItems.push({
-    PutRequest: {
-      Item: {
-        aggregate_key: aggregateKey,
-        metric_type: "popularity",
-        date_range: `${dateRange.startDate}_${dateRange.endDate}`,
-        data: {
-          total: aggregatedData.popularity.total,
-          average: aggregatedData.popularity.average,
-          count: aggregatedData.count,
-        },
-        created_at: new Date().toISOString(),
-      },
-    },
-  });
-
-  // Add UI popularity item
-  requestItems.push({
-    PutRequest: {
-      Item: {
-        aggregate_key: aggregateKey,
-        metric_type: "ui_popularity",
-        date_range: `${dateRange.startDate}_${dateRange.endDate}`,
-        data: {
-          total: aggregatedData.ui_popularity.total,
-          average: aggregatedData.ui_popularity.average,
-          count: aggregatedData.count,
-        },
-        created_at: new Date().toISOString(),
-      },
-    },
-  });
-
-  // Use BatchWrite to save both items
-  const params = {
-    RequestItems: {
-      [AGGREGATION_TABLE]: requestItems,
-    },
-  };
-
-  await dynamoDB.batchWrite(params).promise();
-}
-
-// Process weekly aggregates
-async function processWeeklyAggregates(year, weekNum) {
-  console.log(`Processing weekly aggregates for ${year}-W${weekNum}`);
-
-  const dateRange = getWeekDateRange(year, parseInt(weekNum));
-  const items = await getDataForDateRange(
-    dateRange.startDate,
-    dateRange.endDate
-  );
-
-  if (items.length === 0) {
-    console.log(`No data found for week ${weekNum} of ${year}`);
-    return;
-  }
-
-  const aggregatedData = calculateAggregates(items);
-  const aggregateKey = `WEEKLY#${year}-W${weekNum}`;
-
-  await saveAggregatedData(aggregateKey, dateRange, aggregatedData);
-  console.log(`Saved weekly aggregates for ${aggregateKey}`);
-}
-
-// Process monthly aggregates
-async function processMonthlyAggregates(year, month) {
-  console.log(`Processing monthly aggregates for ${year}-${month}`);
-
-  const dateRange = getMonthDateRange(year, parseInt(month));
-  const items = await getDataForDateRange(
-    dateRange.startDate,
-    dateRange.endDate
-  );
-
-  if (items.length === 0) {
-    console.log(`No data found for month ${month} of ${year}`);
-    return;
-  }
-
-  const aggregatedData = calculateAggregates(items);
-  const aggregateKey = `MONTHLY#${year}-${month.toString().padStart(2, "0")}`;
-
-  await saveAggregatedData(aggregateKey, dateRange, aggregatedData);
-  console.log(`Saved monthly aggregates for ${aggregateKey}`);
-}
-
-// Process yearly aggregates
-async function processYearlyAggregates(year) {
-  console.log(`Processing yearly aggregates for ${year}`);
-
-  const dateRange = getYearDateRange(year);
-  const items = await getDataForDateRange(
-    dateRange.startDate,
-    dateRange.endDate
-  );
-
-  if (items.length === 0) {
-    console.log(`No data found for year ${year}`);
-    return;
-  }
-
-  const aggregatedData = calculateAggregates(items);
-  const aggregateKey = `YEARLY#${year}`;
-
-  await saveAggregatedData(aggregateKey, dateRange, aggregatedData);
-  console.log(`Saved yearly aggregates for ${aggregateKey}`);
-}
-
-// Main handler for processing aggregates
-exports.processAggregates = async (event) => {
+export const handler = async (event) => {
   try {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, "0");
-    const weekNum = getWeekNumber(today);
-
-    // Process weekly aggregates every day
-    await processWeeklyAggregates(year, weekNum);
-
-    // Process monthly aggregates on the 1st of each month
-    if (today.getDate() === 1) {
-      // Get previous month
-      const prevMonth = today.getMonth() === 0 ? 12 : today.getMonth();
-      const prevMonthYear = today.getMonth() === 0 ? year - 1 : year;
-      await processMonthlyAggregates(prevMonthYear, prevMonth);
-    }
-
-    // Process yearly aggregates on January 1st
-    if (today.getMonth() === 0 && today.getDate() === 1) {
-      await processYearlyAggregates(year - 1);
-    }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: "Aggregates processed successfully" }),
-    };
-  } catch (error) {
-    console.error("Error processing aggregates:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Failed to process aggregates" }),
-    };
-  }
-};
-
-// Handler for retrieving aggregated data
-exports.getAggregatedData = async (event) => {
-  try {
-    // Extract query parameters
-    const { aggregationType, year, period, metricType } =
+    // Expect query parameters: startDate and endDate in YYYY-MM-DD format.
+    const { startDate: startDateParam, endDate: endDateParam } =
       event.queryStringParameters || {};
-
-    // Validate required parameters
-    if (!aggregationType || !year || !metricType) {
+    if (!startDateParam || !endDateParam) {
       return {
         statusCode: 400,
         body: JSON.stringify({
-          error:
-            "Missing required parameters. Please provide aggregationType, year, and metricType.",
+          message:
+            "Please provide startDate and endDate query parameters in YYYY-MM-DD format.",
         }),
       };
     }
 
-    let aggregateKey;
-
-    // Construct the appropriate aggregate key based on aggregation type
-    switch (aggregationType.toUpperCase()) {
-      case "WEEKLY":
-        if (!period) {
-          return {
-            statusCode: 400,
-            body: JSON.stringify({
-              error: "Week number is required for weekly aggregation",
-            }),
-          };
-        }
-        aggregateKey = `WEEKLY#${year}-W${period.padStart(2, "0")}`;
-        break;
-      case "MONTHLY":
-        if (!period) {
-          return {
-            statusCode: 400,
-            body: JSON.stringify({
-              error: "Month is required for monthly aggregation",
-            }),
-          };
-        }
-        aggregateKey = `MONTHLY#${year}-${period.padStart(2, "0")}`;
-        break;
-      case "YEARLY":
-        aggregateKey = `YEARLY#${year}`;
-        break;
-      default:
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            error: "Invalid aggregation type. Use WEEKLY, MONTHLY, or YEARLY.",
-          }),
-        };
+    // Validate and format dates using Moment.js
+    const start = moment(startDateParam, "YYYY-MM-DD", true);
+    const end = moment(endDateParam, "YYYY-MM-DD", true);
+    if (!start.isValid() || !end.isValid()) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message: "Invalid date format. Use YYYY-MM-DD.",
+        }),
+      };
     }
+    const startStr = start.format("YYYY-MM-DD");
+    const endStr = end.format("YYYY-MM-DD");
 
-    // Query the aggregation table
-    const params = {
-      TableName: AGGREGATION_TABLE,
-      Key: {
-        aggregate_key: aggregateKey,
-        metric_type: metricType,
+    // Query the Metrices table using the byStatusAndDate GSI.
+    const queryResult = await getItemByQuery({
+      table: METRICES_TABLE,
+      IndexName: "byStatusAndDate",
+      KeyConditionExpression:
+        "#includeMe = :includeMeVal AND #date BETWEEN :startDate AND :endDate",
+      ExpressionAttributeNames: {
+        "#includeMe": "includeMe",
+        "#date": "date",
       },
-    };
+      ExpressionAttributeValues: {
+        ":includeMeVal": "YES",
+        ":startDate": startStr,
+        ":endDate": endStr,
+      },
+    });
+    const items = queryResult.Items;
+    console.log("Retrieved items:", items);
 
-    const result = await dynamoDB.get(params).promise();
+    // Initialize the aggregated data structure.
+    // Structure: { [database_id]: { weekly: { periodKey: { count, popularityTotalScore, uiPopularityTotalScore } }, monthly: { ... }, yearly: { ... } } }
+    const aggregated = {};
 
-    if (!result.Item) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({
-          message: "No aggregated data found for the specified parameters",
-        }),
-      };
-    }
+    // Process each daily record.
+    items.forEach((item) => {
+      const dbId = item.database_id;
+      const dateStr = item.date; // Expected format "YYYY-MM-DD"
+      const recordDate = moment(dateStr, "YYYY-MM-DD");
+      if (!recordDate.isValid()) return; // Skip invalid dates
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(result.Item),
-    };
-  } catch (error) {
-    console.error("Error retrieving aggregated data:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Failed to retrieve aggregated data" }),
-    };
-  }
-};
+      const year = recordDate.format("YYYY");
+      const month = recordDate.format("MM");
+      // Use ISO week and pad the week number to two digits.
+      const week = recordDate.isoWeek().toString().padStart(2, "0");
 
-// Optional: Function to backfill historical aggregates
-exports.backfillAggregates = async (event) => {
-  try {
-    const { startYear, endYear } = event.queryStringParameters || {};
+      // Build period keys.
+      const weeklyKey = `weekly#${year}-W${week}`; // e.g., "weekly#2025-W02"
+      const monthlyKey = `monthly#${year}-${month}`; // e.g., "monthly#2025-01"
+      const yearlyKey = `yearly#${year}`; // e.g., "yearly#2025"
 
-    if (!startYear || !endYear) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Start year and end year are required" }),
-      };
-    }
+      // Initialize the bucket for this database if needed.
+      if (!aggregated[dbId]) {
+        aggregated[dbId] = { weekly: {}, monthly: {}, yearly: {} };
+      }
 
-    // Backfill yearly aggregates
-    for (let year = parseInt(startYear); year <= parseInt(endYear); year++) {
-      await processYearlyAggregates(year);
+      // Extract the two score fields (default to 0 if not present).
+      const popScore =
+        item.popularity && typeof item.popularity.totalScore === "number"
+          ? item.popularity.totalScore
+          : 0;
+      const uiPopScore =
+        item.ui_popularity && typeof item.ui_popularity.totalScore === "number"
+          ? item.ui_popularity.totalScore
+          : 0;
 
-      // Backfill monthly aggregates for each year
-      for (let month = 1; month <= 12; month++) {
-        await processMonthlyAggregates(year, month.toString().padStart(2, "0"));
+      // Aggregate the scores.
+      aggregated[dbId].weekly[weeklyKey] = aggregateRecord(
+        aggregated[dbId].weekly[weeklyKey],
+        popScore,
+        uiPopScore
+      );
+      aggregated[dbId].monthly[monthlyKey] = aggregateRecord(
+        aggregated[dbId].monthly[monthlyKey],
+        popScore,
+        uiPopScore
+      );
+      aggregated[dbId].yearly[yearlyKey] = aggregateRecord(
+        aggregated[dbId].yearly[yearlyKey],
+        popScore,
+        uiPopScore
+      );
+    });
+
+    // Compute averages:
+    // • Weekly: Average = totalScore / 7 (fixed denominator)
+    // • Monthly: Average = totalScore / count (number of daily records)
+    // • Yearly: Average = totalScore / (number of distinct months in that year)
+    Object.keys(aggregated).forEach((dbId) => {
+      // Weekly aggregation
+      Object.keys(aggregated[dbId].weekly).forEach((weeklyKey) => {
+        const rec = aggregated[dbId].weekly[weeklyKey];
+        rec.averagePopularity = rec.popularityTotalScore / 7;
+        rec.averageUiPopularity = rec.uiPopularityTotalScore / 7;
+      });
+      // Monthly aggregation
+      Object.keys(aggregated[dbId].monthly).forEach((monthlyKey) => {
+        const rec = aggregated[dbId].monthly[monthlyKey];
+        rec.averagePopularity = rec.popularityTotalScore / rec.count;
+        rec.averageUiPopularity = rec.uiPopularityTotalScore / rec.count;
+      });
+      // Yearly aggregation:
+      Object.keys(aggregated[dbId].yearly).forEach((yearlyKey) => {
+        // Determine the number of distinct months for this year from the monthly keys.
+        const year = yearlyKey.split("#")[1]; // e.g., "2025"
+        const monthlyKeys = Object.keys(aggregated[dbId].monthly).filter(
+          (key) => key.startsWith(`monthly#${year}-`)
+        );
+        const numMonths = monthlyKeys.length;
+        const rec = aggregated[dbId].yearly[yearlyKey];
+        if (numMonths > 0) {
+          rec.averagePopularity = rec.popularityTotalScore / numMonths;
+          rec.averageUiPopularity = rec.uiPopularityTotalScore / numMonths;
+        } else {
+          rec.averagePopularity = null;
+          rec.averageUiPopularity = null;
+        }
+      });
+    });
+
+    // Write the aggregated data into the Aggregated table.
+    // For each database and for each period key (weekly, monthly, yearly), create a record.
+    let putPromises = [];
+    for (const dbId in aggregated) {
+      const aggTypes = aggregated[dbId];
+      for (const type in aggTypes) {
+        for (const periodKey in aggTypes[type]) {
+          const data = aggTypes[type][periodKey];
+          const putParams = {
+            TableName: AGGREGATED_TABLE,
+            Item: {
+              database_id: dbId,
+              period_key: periodKey,
+              aggregation_type: type, // "weekly", "monthly", or "yearly"
+              metrics: data, // Contains count, totals, and averages
+            },
+          };
+          putPromises.push(
+            createItemOrUpdate(putParams.Item, putParams.TableName)
+          );
+        }
       }
     }
+    console.log("Writing to Aggregated Table:", AGGREGATED_TABLE);
+    await Promise.all(putPromises);
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        message: "Historical aggregates backfilled successfully",
+        message: "Aggregation completed successfully",
+        aggregated,
       }),
     };
   } catch (error) {
-    console.error("Error backfilling aggregates:", error);
+    console.error("Error during aggregation:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Failed to backfill aggregates" }),
+      body: JSON.stringify({ error: error.message }),
     };
   }
 };
 
-// Resources:
-// MetricsAggregation:
-//   Type: AWS::DynamoDB::Table
-//   Properties:
-//     TableName: db-kompare-metrics-aggregated-${self:provider.stage}
-//     DeletionProtectionEnabled: true
-//     BillingMode: PAY_PER_REQUEST
-//     AttributeDefinitions:
-//       - AttributeName: db_id
-//         AttributeType: S
-//       - AttributeName: period_key
-//         AttributeType: S
-//     KeySchema:
-//       - AttributeName: db_id
-//         KeyType: HASH
-//       - AttributeName: period_key
-//         KeyType: RANGE
-//     BillingMode: PAY_PER_REQUEST
+// Helper function to sum scores and count records.
+function aggregateRecord(current, popScore, uiPopScore) {
+  if (!current) {
+    return {
+      count: 1,
+      popularityTotalScore: popScore,
+      uiPopularityTotalScore: uiPopScore,
+    };
+  } else {
+    return {
+      count: current.count + 1,
+      popularityTotalScore: current.popularityTotalScore + popScore,
+      uiPopularityTotalScore: current.uiPopularityTotalScore + uiPopScore,
+    };
+  }
+}
