@@ -101,6 +101,7 @@ provider:
             - ${self:custom.questionsTableArn}/index/byStatus
             - ${self:custom.questionsTableArn}
             - ${self:custom.databaseAggregationTableArn}
+            - ${self:custom.databaseAggregationTableArn}/index/byAggregationType
             - ${self:custom.tagsTableArn}/index/byStatus
             - ${self:custom.tagsTableArn}
             - ${self:custom.companiesTableArn}/index/byStatus
