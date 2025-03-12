@@ -1,13 +1,14 @@
 import { TABLE_NAME } from "../../helpers/constants.js";
-import { fetchAllItemByDynamodbIndex } from "../../helpers/dynamodb.js";
+import {
+  getItem,
+  fetchAllItemByDynamodbIndex,
+} from "../../helpers/dynamodb.js";
 import {
   getUTCTwoDaysAgoDate,
   getUTCYesterdayDate,
   sendResponse,
 } from "../../helpers/helpers.js";
 import moment from "moment";
-import { fetchDbToolById } from "../common/fetchDbToolById.js";
-import { fetchDbToolCategoryDetail } from "../common/fetchDbToolCategoryDetail.js";
 
 export const handler = async (event) => {
   try {
@@ -50,7 +51,7 @@ export const handler = async (event) => {
     if (aggregationType === "daily") {
       // --- DAILY PATH: Query raw daily data from Metrices table ---
       let queryParams = {
-        TableName: TABLE_NAME.DB_TOOLS_METRICES,
+        TableName: TABLE_NAME.METRICES,
         IndexName: "byStatusAndDate",
         KeyConditionExpression: "#includeMe = :includeMeVal",
         ExpressionAttributeNames: {
@@ -70,7 +71,7 @@ export const handler = async (event) => {
       }
 
       items = await fetchAllItemByDynamodbIndex(queryParams);
-      items = await transformData(items);
+      items = await transformDailyData(items);
       // Apply ranking logic for daily data (if needed)
       items = await applyRankingLogic(items);
     } else if (
@@ -95,7 +96,7 @@ export const handler = async (event) => {
 
       // Query the Aggregated table using the GSI "byAggregationType"
       const queryParams = {
-        TableName: TABLE_NAME.DB_TOOLS_AGGREGATED,
+        TableName: TABLE_NAME.DATABASE_AGGREGATED,
         IndexName: "byAggregationType", // GSI with partition key: aggregation_type, sort key: period_key
         KeyConditionExpression:
           "aggregation_type = :agg AND begins_with(period_key, :prefix)",
@@ -107,7 +108,6 @@ export const handler = async (event) => {
 
       const queryResult = await fetchAllItemByDynamodbIndex(queryParams);
       let aggregatedItems = queryResult || [];
-      console.log("aggregatedItems", aggregatedItems);
       items = await transformAggregatedData(aggregatedItems);
       // Apply ranking logic for daily data (if needed)
       items = await applyRankingLogic(items);
@@ -230,7 +230,7 @@ const transformAggregatedData = async (items) => {
 const applyRankingLogic = async (dailyItems) => {
   const getRankingDataForDate = async (dateStr) => {
     const rankingQueryParams = {
-      TableName: TABLE_NAME.DB_TOOLS_RANKINGS,
+      TableName: TABLE_NAME.DATABASE_RANKINGS,
       IndexName: "byStatusAndDate",
       KeyConditionExpression: "#includeMe = :includeMeVal AND #date = :date",
       ExpressionAttributeNames: {

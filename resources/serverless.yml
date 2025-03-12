@@ -367,7 +367,34 @@ resources:
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
-
+    # DB Tool Aggregated Records Table
+    DBToolAggregated:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-dbtools-aggregated-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: period_key
+            AttributeType: S
+          - AttributeName: dbtool_id
+            AttributeType: S
+          - AttributeName: aggregation_type
+            AttributeType: S
+        KeySchema:
+          - AttributeName: dbtool_id
+            KeyType: HASH
+          - AttributeName: period_key
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: byAggregationType
+            KeySchema:
+              - AttributeName: aggregation_type
+                KeyType: HASH
+              - AttributeName: period_key
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
     DatabaseRankings:
       Type: AWS::DynamoDB::Table
       Properties:

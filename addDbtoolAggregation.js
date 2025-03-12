@@ -7,9 +7,17 @@ import {
 import { TABLE_NAME } from "../../helpers/constants.js";
 import { sendResponse } from "../../helpers/helpers.js";
 
-const METRICES_TABLE = TABLE_NAME.METRICES; // e.g., "db-kompare-metrices-prod"
-const AGGREGATED_TABLE = TABLE_NAME.DATABASE_AGGREGATED; // e.g., "db-kompare-database-aggregated-prod"
+// Use the DBToolAggregated table name from your constants (update as needed).
+const METRICES_TABLE = TABLE_NAME.DB_TOOLS_METRICES; // Raw data table remains the same.
+const AGGREGATED_TABLE = TABLE_NAME.DB_TOOLS_AGGREGATED; // Use the DBToolAggregated table
 
+/**
+ * Main handler function.
+ * This function aggregates daily records (from the METRICES table) by dbtool_id
+ * and updates the aggregated table (DBToolAggregated).
+ *
+ * For each record, we generate period keys (weekly, monthly, yearly) using the record's date.
+ */
 export const handler = async (event) => {
   try {
     // Expect query parameters: startDate and endDate (YYYY-MM-DD).
@@ -31,8 +39,7 @@ export const handler = async (event) => {
     const startStr = start.format("YYYY-MM-DD");
     const endStr = end.format("YYYY-MM-DD");
 
-    let items = [];
-
+    // Query the METRICES table using the byStatusAndDate GSI.
     const queryParams = {
       TableName: METRICES_TABLE,
       IndexName: "byStatusAndDate",
@@ -49,13 +56,22 @@ export const handler = async (event) => {
       },
     };
 
-    items = await fetchAllItemByDynamodbIndex(queryParams);
+    const items = await fetchAllItemByDynamodbIndex(queryParams);
 
+    // Build an in-memory aggregated object.
+    // Structure:
+    // {
+    //   [dbtool_id]: {
+    //     weekly: { [weeklyKey]: aggregatedMetrics },
+    //     monthly: { [monthlyKey]: aggregatedMetrics },
+    //     yearly: { [yearlyKey]: { ...aggregatedMetrics, months: Set() } }
+    //   }
+    // }
     const aggregated = {};
 
     items.forEach((item) => {
-      const dbId = item.database_id;
-      // Process the raw date directly.
+      // Use "dbtool_id" instead of "database_id".
+      const dbToolId = item.dbtool_id;
       const recordDate = moment(item.date, "YYYY-MM-DD");
       if (!recordDate.isValid()) return;
 
@@ -64,12 +80,12 @@ export const handler = async (event) => {
       const week = recordDate.isoWeek().toString().padStart(2, "0");
 
       // Build period keys.
-      const weeklyKey = `weekly#${year}-W${week}`; // e.g., "weekly#2025-W10"
-      const monthlyKey = `monthly#${year}-${month}`; // e.g., "monthly#2025-03"
-      const yearlyKey = `yearly#${year}`; // e.g., "yearly#2025"
+      const weeklyKey = `weekly#${year}-W${week}`;
+      const monthlyKey = `monthly#${year}-${month}`;
+      const yearlyKey = `yearly#${year}`;
 
-      if (!aggregated[dbId]) {
-        aggregated[dbId] = { weekly: {}, monthly: {}, yearly: {} };
+      if (!aggregated[dbToolId]) {
+        aggregated[dbToolId] = { weekly: {}, monthly: {}, yearly: {} };
       }
 
       // Use raw values from the item.
@@ -78,34 +94,42 @@ export const handler = async (event) => {
         ui_popularity: item.ui_popularity || {},
       };
 
-      aggregated[dbId].weekly[weeklyKey] = aggregated[dbId].weekly[weeklyKey]
-        ? accumulateMetrics(aggregated[dbId].weekly[weeklyKey], dailyMetrics)
+      aggregated[dbToolId].weekly[weeklyKey] = aggregated[dbToolId].weekly[
+        weeklyKey
+      ]
+        ? accumulateMetrics(
+            aggregated[dbToolId].weekly[weeklyKey],
+            dailyMetrics
+          )
         : accumulateMetrics(null, dailyMetrics);
-      aggregated[dbId].monthly[monthlyKey] = aggregated[dbId].monthly[
+      aggregated[dbToolId].monthly[monthlyKey] = aggregated[dbToolId].monthly[
         monthlyKey
       ]
-        ? accumulateMetrics(aggregated[dbId].monthly[monthlyKey], dailyMetrics)
+        ? accumulateMetrics(
+            aggregated[dbToolId].monthly[monthlyKey],
+            dailyMetrics
+          )
         : accumulateMetrics(null, dailyMetrics);
 
-      if (!aggregated[dbId].yearly[yearlyKey]) {
-        aggregated[dbId].yearly[yearlyKey] = {
+      if (!aggregated[dbToolId].yearly[yearlyKey]) {
+        aggregated[dbToolId].yearly[yearlyKey] = {
           count: 0,
           popularity: {},
           ui_popularity: {},
           months: new Set(),
         };
       }
-      aggregated[dbId].yearly[yearlyKey] = accumulateMetrics(
-        aggregated[dbId].yearly[yearlyKey],
+      aggregated[dbToolId].yearly[yearlyKey] = accumulateMetrics(
+        aggregated[dbToolId].yearly[yearlyKey],
         dailyMetrics
       );
-      aggregated[dbId].yearly[yearlyKey].months.add(month);
+      aggregated[dbToolId].yearly[yearlyKey].months.add(month);
     });
 
-    // Prepare to update all aggregated buckets in chunks.
+    // Prepare update promises in chunks.
     const updatePromises = [];
-    for (const dbId in aggregated) {
-      const aggTypes = aggregated[dbId];
+    for (const dbToolId in aggregated) {
+      const aggTypes = aggregated[dbToolId];
       for (const type of ["weekly", "monthly"]) {
         for (const periodKey in aggTypes[type]) {
           const currentData = aggTypes[type][periodKey];
@@ -121,7 +145,7 @@ export const handler = async (event) => {
           currentData.popularity.count = divisor;
           currentData.ui_popularity.count = divisor;
           updatePromises.push(
-            updateAggregatedRecord(dbId, periodKey, type, currentData)
+            updateAggregatedRecord(dbToolId, periodKey, type, currentData)
           );
         }
       }
@@ -139,7 +163,7 @@ export const handler = async (event) => {
         currentData.popularity.count = distinctMonthCount;
         currentData.ui_popularity.count = distinctMonthCount;
         updatePromises.push(
-          updateAggregatedRecord(dbId, periodKey, "yearly", currentData)
+          updateAggregatedRecord(dbToolId, periodKey, "yearly", currentData)
         );
       }
     }
@@ -211,8 +235,12 @@ function calculateAverages(obj = {}, divisor) {
   return averages;
 }
 
-async function updateAggregatedRecord(dbId, periodKey, type, currentData) {
-  const key = { database_id: dbId, period_key: periodKey };
+/**
+ * updateAggregatedRecord: Retrieves any existing aggregated record, merges with new data,
+ * calculates averages, and writes the record into the Aggregated table.
+ */
+async function updateAggregatedRecord(dbToolId, periodKey, type, currentData) {
+  const key = { dbtool_id: dbToolId, period_key: periodKey };
   let existing = await getItem(AGGREGATED_TABLE, key);
   let merged = {};
   if (existing && existing.metrics) {
@@ -276,13 +304,13 @@ async function updateAggregatedRecord(dbId, periodKey, type, currentData) {
   merged.ui_popularity.count = merged.count;
 
   const finalItem = {
-    database_id: dbId,
+    dbtool_id: dbToolId,
     period_key: periodKey,
     aggregation_type: type,
     metrics: merged,
   };
 
-  // Clean the final item to remove any empty attributes.
+  // Clean the final item to remove empty attributes.
   const cleanedItem = cleanObject(finalItem);
   await createItemOrUpdate(cleanedItem, AGGREGATED_TABLE);
 }

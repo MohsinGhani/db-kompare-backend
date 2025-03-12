@@ -22,6 +22,7 @@ custom:
   tagsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.TAGS_TABLE}
   companiesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMPANIES_TABLE}
   databaseAggregationTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DATABASE_AGGREGATED_TABLE}
+  dbToolsAggregationTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_AGGREGATED_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -64,6 +65,7 @@ provider:
     TAGS_TABLE: db-kompare-tags-${self:provider.stage}
     COMPANIES_TABLE: db-kompare-companies-${self:provider.stage}
     DATABASE_AGGREGATED_TABLE: db-kompare-database-aggregated-${self:provider.stage}
+    DB_TOOLS_AGGREGATED_TABLE: db-kompare-dbtools-aggregated-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -101,7 +103,9 @@ provider:
             - ${self:custom.questionsTableArn}/index/byStatus
             - ${self:custom.questionsTableArn}
             - ${self:custom.databaseAggregationTableArn}
+            - ${self:custom.dbToolsAggregationTableArn}
             - ${self:custom.databaseAggregationTableArn}/index/byAggregationType
+            - ${self:custom.dbToolsAggregationTableArn}/index/byAggregationType
             - ${self:custom.tagsTableArn}/index/byStatus
             - ${self:custom.tagsTableArn}
             - ${self:custom.companiesTableArn}/index/byStatus
@@ -364,6 +368,7 @@ functions:
 
   getMetrices:
     handler: functions/metrices/getMetrices.handler
+    timeout: 300
     events:
       - http:
           path: /get-metrices

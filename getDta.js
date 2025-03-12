@@ -98,16 +98,16 @@ export const handler = async (event) => {
       // --- AGGREGATED PATH: Query Aggregated table via the GSI "byAggregationType" ---
       // Build a prefix based on the aggregation type and the startDate.
       let prefix = "";
+      const year = "2025";
       if (aggregationType === "weekly") {
         // const year = moment(startDate, "YYYY-MM-DD").format("YYYY");
-        const year = "2025";
         prefix = `weekly#${year}`;
       } else if (aggregationType === "monthly") {
-        const yearMonth = moment(startDate, "YYYY-MM-DD").format("YYYY-MM");
-        prefix = `monthly#${yearMonth}`;
+        // const yearMonth = moment(startDate, "YYYY-MM-DD").format("YYYY-MM");
+        prefix = `monthly#${year}`;
       } else if (aggregationType === "yearly") {
-        const year = moment(startDate, "YYYY-MM-DD").format("YYYY");
-        prefix = `yearly#${year}`;
+        // const year = moment(startDate, "YYYY-MM-DD").format("YYYY");
+        prefix = "yearly#";
       }
 
       // Query the Aggregated table using the GSI "byAggregationType"
@@ -120,7 +120,6 @@ export const handler = async (event) => {
           ":agg": aggregationType,
           ":prefix": prefix,
         },
-        Limit: 400,
       };
 
       const queryResult = await fetchAllItemByDynamodbIndex(queryParams);
@@ -184,20 +183,19 @@ const transformAggregatedData = async (items) => {
     const {
       database_id: databaseId,
       period_key,
-      metrics,
+      metrics: db_metrics,
       aggregation_type,
     } = item;
     if (!acc[databaseId]) {
       acc[databaseId] = {
         databaseId,
         databaseName: "Fetching...", // placeholder
-        aggregations: [],
+        metrics: [],
       };
     }
-    acc[databaseId].aggregations.push({
-      period_key,
-      aggregation_type,
-      metrics,
+    acc[databaseId].metrics.push({
+      date: period_key,
+      ui_popularity: db_metrics?.ui_popularity?.average,
     });
     return acc;
   }, {});

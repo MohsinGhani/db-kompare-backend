@@ -15,6 +15,7 @@ export const TABLE_NAME = {
   COMPANIES: process.env.COMPANIES_TABLE,
   TAGS: process.env.TAGS_TABLE,
   DATABASE_AGGREGATED: process.env.DATABASE_AGGREGATED_TABLE,
+  DB_TOOLS_AGGREGATED: process.env.DB_TOOLS_AGGREGATED_TABLE,
 };
 
 export const STATUS_CODE = {
