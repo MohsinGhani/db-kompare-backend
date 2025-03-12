@@ -107,7 +107,6 @@ export const handler = async (event) => {
 
       const queryResult = await fetchAllItemByDynamodbIndex(queryParams);
       let aggregatedItems = queryResult || [];
-      console.log("aggregatedItems", aggregatedItems);
       items = await transformAggregatedData(aggregatedItems);
       // Apply ranking logic for daily data (if needed)
       items = await applyRankingLogic(items);
@@ -190,8 +189,13 @@ const transformData = async (items) => {
  */
 const transformAggregatedData = async (items) => {
   const groupedData = items.reduce((acc, item) => {
-    const { dbtool_id: dbToolId, period_key, metrics: dbtool_metrics } = item;
-
+    const {
+      dbtool_id: dbToolId,
+      period_key,
+      metrics: dbtool_metrics,
+      category_id,
+    } = item;
+    console.log("item", item);
     // Ensure the DB Tool entry exists in the accumulator
     if (!acc[dbToolId]) {
       acc[dbToolId] = {
@@ -205,16 +209,19 @@ const transformAggregatedData = async (items) => {
       date: period_key,
       ui_popularity: dbtool_metrics?.ui_popularity?.average,
     });
+
+    // Save the category ID for later use
+    acc[dbToolId].categoryId = category_id;
     return acc;
   }, {});
 
   const dbToolIds = Object.keys(groupedData);
   await Promise.all(
     dbToolIds.map(async (dbToolId) => {
-      const categoryDetail = await fetchDbToolCategoryDetail(
-        groupedData[dbToolId].categoryId
-      );
       const dbToolName = await fetchDbToolById(dbToolId);
+      // const categoryDetail = await fetchDbToolCategoryDetail(
+      //   dbToolName?.category_id
+      // );
       groupedData[dbToolId].dbToolName = dbToolName?.tool_name;
       groupedData[dbToolId].categoryDetail = categoryDetail;
       groupedData[dbToolId].ui_display = dbToolName?.ui_display;
