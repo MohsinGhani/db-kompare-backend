@@ -7,3 +7,9 @@ export const STATUS = {
   ACTIVE: "ACTIVE",
   DISABLED: "DISABLED",
 };
+
+export const ENTITY_TYPE = {
+  DATABASE: "database",
+  DBTOOL: "dbtool",
+  BLOG: "blog",
+};

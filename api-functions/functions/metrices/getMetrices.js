@@ -119,9 +119,9 @@ export const handler = async (event) => {
     }
 
     // Filter out objects with ui_display set to "NO"
-    const filteredData = items.filter((db) => db.ui_display !== "NO");
+    // const filteredData = items.filter((db) => db.ui_display !== "NO");
 
-    return sendResponse(200, "Fetch metrics successfully", filteredData);
+    return sendResponse(200, "Fetch metrics successfully", items);
   } catch (error) {
     console.error("Error fetching metrics:", error);
     return sendResponse(500, "Failed to fetch metrics", {

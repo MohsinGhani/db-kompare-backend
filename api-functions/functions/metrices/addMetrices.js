@@ -1,283 +1,311 @@
-import { TABLE_NAME } from "../../helpers/constants.js";
-import { fetchAllItemByDynamodbIndex } from "../../helpers/dynamodb.js";
-import {
-  getUTCTwoDaysAgoDate,
-  getUTCYesterdayDate,
-  sendResponse,
-} from "../../helpers/helpers.js";
 import moment from "moment";
-import { fetchDbToolById } from "../common/fetchDbToolById.js";
-import { fetchDbToolCategoryDetail } from "../common/fetchDbToolCategoryDetail.js";
+import {
+  getItem,
+  fetchAllItemByDynamodbIndex,
+  createItemOrUpdate,
+} from "../../helpers/dynamodb.js";
+import { TABLE_NAME } from "../../helpers/constants.js";
+import { getYesterdayDate, sendResponse } from "../../helpers/helpers.js";
+
+const METRICES_TABLE = TABLE_NAME.METRICES; // e.g., "db-kompare-metrices-prod"
+const AGGREGATED_TABLE = TABLE_NAME.DATABASE_AGGREGATED; // e.g., "db-kompare-database-aggregated-prod"
 
 export const handler = async (event) => {
   try {
-    let startDate = "";
-    let endDate = "";
-    let aggregationType = "daily"; // default
-
-    // Parse parameters from body or query string.
-    if (event.body) {
-      const parsedBody = JSON.parse(event.body);
-      startDate = parsedBody.startDate;
-      endDate = parsedBody.endDate;
-
-      if (parsedBody.aggregationType) {
-        aggregationType = parsedBody.aggregationType;
-      }
-    }
-
-    // Validate date range if provided.
-    if ((startDate && !endDate) || (!startDate && endDate)) {
-      return sendResponse(
-        400,
-        "Both startDate and endDate must be provided for date range filtering."
-      );
-    }
-    if (startDate && endDate) {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
-        return sendResponse(
-          400,
-          "startDate and endDate must be in YYYY-MM-DD format."
-        );
-      }
-      if (startDate > endDate) {
-        return sendResponse(400, "startDate cannot be later than endDate.");
-      }
-    }
+    const start = getYesterdayDate;
+    const end = getYesterdayDate;
 
     let items = [];
-    if (aggregationType === "daily") {
-      // --- DAILY PATH: Query raw daily data from Metrices table ---
-      let queryParams = {
-        TableName: TABLE_NAME.DB_TOOLS_METRICES,
-        IndexName: "byStatusAndDate",
-        KeyConditionExpression: "#includeMe = :includeMeVal",
-        ExpressionAttributeNames: {
-          "#includeMe": "includeMe",
-        },
-        ExpressionAttributeValues: {
-          ":includeMeVal": "YES",
-        },
-      };
 
-      if (startDate && endDate) {
-        queryParams.KeyConditionExpression +=
-          " AND #date BETWEEN :startDate AND :endDate";
-        queryParams.ExpressionAttributeNames["#date"] = "date";
-        queryParams.ExpressionAttributeValues[":startDate"] = startDate;
-        queryParams.ExpressionAttributeValues[":endDate"] = endDate;
-      }
-
-      items = await fetchAllItemByDynamodbIndex(queryParams);
-      items = await transformData(items);
-      // Apply ranking logic for daily data (if needed)
-      items = await applyRankingLogic(items);
-    } else if (
-      aggregationType === "weekly" ||
-      aggregationType === "monthly" ||
-      aggregationType === "yearly"
-    ) {
-      // --- AGGREGATED PATH: Query Aggregated table via the GSI "byAggregationType" ---
-      // Build a prefix based on the aggregation type and the startDate.
-      let prefix = "";
-      const year = moment().format("YYYY");
-      if (aggregationType === "weekly") {
-        // const year = moment(startDate, "YYYY-MM-DD").format("YYYY");
-        prefix = `weekly#${year}`;
-      } else if (aggregationType === "monthly") {
-        // const yearMonth = moment(startDate, "YYYY-MM-DD").format("YYYY-MM");
-        prefix = `monthly#${year}`;
-      } else if (aggregationType === "yearly") {
-        // const year = moment(startDate, "YYYY-MM-DD").format("YYYY");
-        prefix = "yearly#";
-      }
-
-      // Query the Aggregated table using the GSI "byAggregationType"
-      const queryParams = {
-        TableName: TABLE_NAME.DB_TOOLS_AGGREGATED,
-        IndexName: "byAggregationType", // GSI with partition key: aggregation_type, sort key: period_key
-        KeyConditionExpression:
-          "aggregation_type = :agg AND begins_with(period_key, :prefix)",
-        ExpressionAttributeValues: {
-          ":agg": aggregationType,
-          ":prefix": prefix,
-        },
-      };
-
-      const queryResult = await fetchAllItemByDynamodbIndex(queryParams);
-      let aggregatedItems = queryResult || [];
-      items = await transformAggregatedData(aggregatedItems);
-      // Apply ranking logic for daily data (if needed)
-      items = await applyRankingLogic(items);
-    } else {
-      return sendResponse(
-        400,
-        "Invalid aggregationType provided. Valid types: daily, weekly, monthly, yearly."
-      );
-    }
-
-    // Filter out objects with ui_display set to "NO"
-    const filteredData = items.filter((db) => db.ui_display !== "NO");
-
-    return sendResponse(200, "Fetch metrics successfully", filteredData);
-  } catch (error) {
-    console.error("Error fetching metrics:", error);
-    return sendResponse(500, "Failed to fetch metrics", {
-      error: error.message,
-    });
-  }
-};
-
-/**
- * transformDailyData: Groups raw daily records by database_id,
- * and fetches database names and ui_display from the Databases table.
- */
-const transformData = async (items) => {
-  // Group items by `dbtool_id`
-  const groupedData = items.reduce((acc, item) => {
-    const {
-      dbtool_id: dbToolId,
-      date,
-      popularity,
-      ui_popularity,
-      category_id,
-    } = item;
-
-    // Ensure the DB Tool entry exists in the accumulator
-    if (!acc[dbToolId]) {
-      acc[dbToolId] = {
-        dbToolId,
-        categoryDetail: "Fetching...", // Placeholder for category detail
-        metrics: [],
-      };
-    }
-
-    // Add metrics for the current date
-    acc[dbToolId].metrics.push({
-      date,
-      popularity,
-      ui_popularity,
-    });
-
-    // Save the category ID for later use
-    acc[dbToolId].categoryId = category_id;
-
-    return acc;
-  }, {});
-
-  // Fetch category details and DB tool names for each unique dbToolId
-  const dbToolIds = Object.keys(groupedData);
-  await Promise.all(
-    dbToolIds.map(async (dbToolId) => {
-      const categoryDetail = await fetchDbToolCategoryDetail(
-        groupedData[dbToolId].categoryId
-      );
-      const dbToolName = await fetchDbToolById(dbToolId);
-      groupedData[dbToolId].dbToolName = dbToolName?.tool_name;
-      groupedData[dbToolId].categoryDetail = categoryDetail;
-      groupedData[dbToolId].ui_display = dbToolName?.ui_display;
-    })
-  );
-
-  // Convert the grouped object to an array
-  return Object.values(groupedData);
-};
-/**
- * transformAggregatedData: Groups aggregated items by database_id,
- * and collects them into an "aggregations" array.
- */
-const transformAggregatedData = async (items) => {
-  const groupedData = items.reduce((acc, item) => {
-    const {
-      dbtool_id: dbToolId,
-      period_key,
-      metrics: dbtool_metrics,
-      category_id,
-    } = item;
-    console.log("item", item);
-    // Ensure the DB Tool entry exists in the accumulator
-    if (!acc[dbToolId]) {
-      acc[dbToolId] = {
-        dbToolId,
-        categoryDetail: "Fetching...", // Placeholder for category detail
-        metrics: [],
-      };
-    }
-
-    acc[dbToolId].metrics.push({
-      date: period_key,
-      ui_popularity: dbtool_metrics?.ui_popularity?.average,
-    });
-
-    // Save the category ID for later use
-    acc[dbToolId].categoryId = category_id;
-    return acc;
-  }, {});
-
-  const dbToolIds = Object.keys(groupedData);
-  await Promise.all(
-    dbToolIds.map(async (dbToolId) => {
-      const dbToolName = await fetchDbToolById(dbToolId);
-      // const categoryDetail = await fetchDbToolCategoryDetail(
-      //   dbToolName?.category_id
-      // );
-      groupedData[dbToolId].dbToolName = dbToolName?.tool_name;
-      groupedData[dbToolId].categoryDetail = categoryDetail;
-      groupedData[dbToolId].ui_display = dbToolName?.ui_display;
-    })
-  );
-
-  return Object.values(groupedData);
-};
-
-/**
- * applyRankingLogic: Applies ranking to daily data using ranking info from DATABASE_RANKINGS table.
- */
-const applyRankingLogic = async (dailyItems) => {
-  const getRankingDataForDate = async (dateStr) => {
-    const rankingQueryParams = {
-      TableName: TABLE_NAME.DB_TOOLS_RANKINGS,
+    const queryParams = {
+      TableName: METRICES_TABLE,
       IndexName: "byStatusAndDate",
-      KeyConditionExpression: "#includeMe = :includeMeVal AND #date = :date",
+      KeyConditionExpression:
+        "#includeMe = :includeMeVal AND #date BETWEEN :startDate AND :endDate",
       ExpressionAttributeNames: {
         "#includeMe": "includeMe",
         "#date": "date",
       },
       ExpressionAttributeValues: {
         ":includeMeVal": "YES",
-        ":date": dateStr,
+        ":startDate": start,
+        ":endDate": end,
       },
     };
-    return await fetchAllItemByDynamodbIndex(rankingQueryParams);
-  };
 
-  let rankingResult = await getRankingDataForDate(getUTCYesterdayDate);
-  if (!rankingResult || rankingResult.length === 0) {
-    rankingResult = await getRankingDataForDate(getUTCTwoDaysAgoDate);
+    items = await fetchAllItemByDynamodbIndex(queryParams);
+
+    const aggregated = {};
+
+    items.forEach((item) => {
+      const dbId = item.database_id;
+      // Process the raw date directly.
+      const recordDate = moment(item.date, "YYYY-MM-DD");
+      if (!recordDate.isValid()) return;
+
+      const year = recordDate.format("YYYY");
+      const month = recordDate.format("MM");
+      const week = recordDate.isoWeek().toString().padStart(2, "0");
+
+      // Build period keys.
+      const weeklyKey = `weekly#${year}-W${week}`; // e.g., "weekly#2025-W10"
+      const monthlyKey = `monthly#${year}-${month}`; // e.g., "monthly#2025-03"
+      const yearlyKey = `yearly#${year}`; // e.g., "yearly#2025"
+
+      if (!aggregated[dbId]) {
+        aggregated[dbId] = { weekly: {}, monthly: {}, yearly: {} };
+      }
+
+      // Use raw values from the item.
+      const dailyMetrics = {
+        popularity: item.popularity || {},
+        ui_popularity: item.ui_popularity || {},
+      };
+
+      aggregated[dbId].weekly[weeklyKey] = aggregated[dbId].weekly[weeklyKey]
+        ? accumulateMetrics(aggregated[dbId].weekly[weeklyKey], dailyMetrics)
+        : accumulateMetrics(null, dailyMetrics);
+      aggregated[dbId].monthly[monthlyKey] = aggregated[dbId].monthly[
+        monthlyKey
+      ]
+        ? accumulateMetrics(aggregated[dbId].monthly[monthlyKey], dailyMetrics)
+        : accumulateMetrics(null, dailyMetrics);
+
+      if (!aggregated[dbId].yearly[yearlyKey]) {
+        aggregated[dbId].yearly[yearlyKey] = {
+          count: 0,
+          popularity: {},
+          ui_popularity: {},
+          months: new Set(),
+        };
+      }
+      aggregated[dbId].yearly[yearlyKey] = accumulateMetrics(
+        aggregated[dbId].yearly[yearlyKey],
+        dailyMetrics
+      );
+      aggregated[dbId].yearly[yearlyKey].months.add(month);
+    });
+
+    // Prepare to update all aggregated buckets in chunks.
+    const updatePromises = [];
+    for (const dbId in aggregated) {
+      const aggTypes = aggregated[dbId];
+      for (const type of ["weekly", "monthly"]) {
+        for (const periodKey in aggTypes[type]) {
+          const currentData = aggTypes[type][periodKey];
+          const divisor = currentData.count;
+          currentData.popularity.average = calculateAverages(
+            currentData.popularity,
+            divisor
+          );
+          currentData.ui_popularity.average = calculateAverages(
+            currentData.ui_popularity,
+            divisor
+          );
+          currentData.popularity.count = divisor;
+          currentData.ui_popularity.count = divisor;
+          updatePromises.push(
+            updateAggregatedRecord(dbId, periodKey, type, currentData)
+          );
+        }
+      }
+      for (const periodKey in aggTypes.yearly) {
+        const currentData = aggTypes.yearly[periodKey];
+        const distinctMonthCount = currentData.months.size;
+        currentData.popularity.average = calculateAverages(
+          currentData.popularity,
+          distinctMonthCount
+        );
+        currentData.ui_popularity.average = calculateAverages(
+          currentData.ui_popularity,
+          distinctMonthCount
+        );
+        currentData.popularity.count = distinctMonthCount;
+        currentData.ui_popularity.count = distinctMonthCount;
+        updatePromises.push(
+          updateAggregatedRecord(dbId, periodKey, "yearly", currentData)
+        );
+      }
+    }
+    await processInChunks(updatePromises, 50);
+
+    return sendResponse(200, "Aggregation updated successfully", {});
+  } catch (error) {
+    console.error("Error in aggregation:", error);
+    return sendResponse(500, "Failed to update aggregation", {
+      error: error.message,
+    });
   }
+};
 
-  const rankingMap = {};
-  if (rankingResult && rankingResult.length > 0) {
-    const rankingData = rankingResult[0];
-    if (rankingData.rankings && Array.isArray(rankingData.rankings)) {
-      rankingData.rankings.forEach((r) => {
-        rankingMap[r.database_id] = r.rank;
-      });
+/**
+ * accumulateMetrics: Merges daily metrics (popularity and ui_popularity) into current aggregated metrics.
+ * It sums numeric fields and increments the count.
+ */
+function accumulateMetrics(current, dailyMetrics) {
+  if (!current) {
+    return {
+      count: 1,
+      popularity: { ...dailyMetrics.popularity },
+      ui_popularity: { ...dailyMetrics.ui_popularity },
+    };
+  }
+  return {
+    count: current.count + 1,
+    popularity: mergeObjects(current.popularity, dailyMetrics.popularity),
+    ui_popularity: mergeObjects(
+      current.ui_popularity,
+      dailyMetrics.ui_popularity
+    ),
+    ...(current.months ? { months: current.months } : {}),
+  };
+}
+
+/**
+ * mergeObjects: Sums numeric properties from obj2 into obj1.
+ * Skips null, undefined, or empty string values.
+ */
+function mergeObjects(obj1 = {}, obj2 = {}) {
+  const result = { ...obj1 };
+  for (const key in obj2) {
+    if (obj2[key] === null || obj2[key] === undefined || obj2[key] === "")
+      continue;
+    if (typeof obj2[key] === "number") {
+      result[key] = (result[key] || 0) + obj2[key];
+    } else {
+      result[key] = obj2[key];
     }
   }
+  return result;
+}
 
-  dailyItems.sort((a, b) => {
-    const rankA =
-      rankingMap[a.databaseId] !== undefined
-        ? rankingMap[a.databaseId]
-        : Number.MAX_SAFE_INTEGER;
-    const rankB =
-      rankingMap[b.databaseId] !== undefined
-        ? rankingMap[b.databaseId]
-        : Number.MAX_SAFE_INTEGER;
-    return rankA - rankB;
-  });
+/**
+ * calculateAverages: For each numeric property in obj (except 'count'),
+ * divides its value by divisor, rounds to two decimals, and returns a new object.
+ */
+function calculateAverages(obj = {}, divisor) {
+  const averages = {};
+  if (divisor === 0) return averages;
+  for (const key in obj) {
+    if (key === "count") continue;
+    if (typeof obj[key] === "number") {
+      averages[key] = parseFloat((obj[key] / divisor).toFixed(2));
+    }
+  }
+  return averages;
+}
 
-  return dailyItems;
-};
+async function updateAggregatedRecord(dbId, periodKey, type, currentData) {
+  console.log("currentData", currentData);
+  const key = { database_id: dbId, period_key: periodKey };
+  let existing = (await getItem(AGGREGATED_TABLE, key)).Item;
+  let merged = {};
+  if (existing && existing?.metrics) {
+    merged.count = (existing.metrics.count || 0) + currentData.count;
+    merged.popularity = mergeObjects(
+      existing.metrics.popularity,
+      currentData.popularity
+    );
+    merged.ui_popularity = mergeObjects(
+      existing.metrics.ui_popularity,
+      currentData.ui_popularity
+    );
+    if (type === "yearly") {
+      const existingMonths = existing.metrics.months || [];
+      const newMonths = new Set(existingMonths);
+      (currentData.months || []).forEach((m) => newMonths.add(m));
+      merged.months = Array.from(newMonths);
+      const monthCount = merged.months.length;
+      merged.popularity.average = calculateAverages(
+        merged.popularity,
+        monthCount
+      );
+      merged.ui_popularity.average = calculateAverages(
+        merged.ui_popularity,
+        monthCount
+      );
+    } else {
+      merged.popularity.average = calculateAverages(
+        merged.popularity,
+        merged.count
+      );
+      merged.ui_popularity.average = calculateAverages(
+        merged.ui_popularity,
+        merged.count
+      );
+    }
+  } else {
+    merged = { ...currentData };
+    if (type === "yearly") {
+      const monthCount = (currentData.months && currentData.months.size) || 1;
+      merged.popularity.average = calculateAverages(
+        currentData.popularity,
+        monthCount
+      );
+      merged.ui_popularity.average = calculateAverages(
+        currentData.ui_popularity,
+        monthCount
+      );
+    } else {
+      merged.popularity.average = calculateAverages(
+        currentData.popularity,
+        currentData.count
+      );
+      merged.ui_popularity.average = calculateAverages(
+        currentData.ui_popularity,
+        currentData.count
+      );
+    }
+  }
+  merged.popularity.count = merged.count;
+  merged.ui_popularity.count = merged.count;
+
+  const finalItem = {
+    database_id: dbId,
+    period_key: periodKey,
+    aggregation_type: type,
+    metrics: merged,
+  };
+
+  // Clean the final item to remove any empty attributes.
+  const cleanedItem = cleanObject(finalItem);
+  await createItemOrUpdate(cleanedItem, AGGREGATED_TABLE);
+}
+
+/**
+ * cleanObject: Recursively removes keys with empty string values.
+ */
+function cleanObject(obj) {
+  if (typeof obj !== "object" || obj === null) return obj;
+  const cleaned = Array.isArray(obj) ? [] : {};
+  for (const key in obj) {
+    const value = obj[key];
+    if (typeof value === "string") {
+      if (value.trim() === "") continue;
+      cleaned[key] = value;
+    } else if (typeof value === "object") {
+      const cleanedValue = cleanObject(value);
+      if (
+        typeof cleanedValue === "object" &&
+        cleanedValue !== null &&
+        Object.keys(cleanedValue).length === 0
+      ) {
+        continue;
+      }
+      cleaned[key] = cleanedValue;
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+/**
+ * processInChunks: Processes an array of promises in chunks to prevent overloading.
+ */
+async function processInChunks(promises, chunkSize = 50) {
+  for (let i = 0; i < promises.length; i += chunkSize) {
+    const chunk = promises.slice(i, i + chunkSize);
+    await Promise.all(chunk);
+  }
+}

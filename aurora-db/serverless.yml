@@ -15,8 +15,17 @@ provider:
     - Effect: Allow
       Action:
         - rds-db:connect
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:Query
+        - dynamodb:Scan
       Resource:
         - Fn::Sub: "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db-cluster:${AuroraCluster}"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-questions-dev"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-solutions-dev"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-submissions-dev"
   environment:
     PG_HOST: ${self:custom.outputs.AuroraClusterEndpoint}
     PG_USER: "dbadmin"
@@ -44,70 +53,86 @@ plugins:
   - serverless-prune-plugin
 
 functions:
-  queryDB:
-    handler: functions/handler.queryDB
-    events:
-      - http:
-          path: query
-          method: post
+  # queryDB:
+  #   handler: functions/handler.queryDB
+  #   events:
+  #     - http:
+  #         path: query
+  #         method: post
 
-  getAllAssignments:
-    handler: functions/assignments/getAllAssignments.handler
-    events:
-      - http:
-          path: /get-assignments
-          method: get
+  # getAllAssignments:
+  #   handler: functions/assignments/getAllAssignments.handler
+  #   events:
+  #     - http:
+  #         path: /get-assignments
+  #         method: get
 
   ## ---------Lessons functions---------
-  createLesson:
-    handler: functions/lessons/createLesson.handler
-    events:
-      - http:
-          path: /create-lesson
-          method: post
-          private: true
-          cors: true
+  # createLesson:
+  #   handler: functions/lessons/createLesson.handler
+  #   events:
+  #     - http:
+  #         path: /create-lesson
+  #         method: post
+  #         private: true
+  #         cors: true
 
-  getLessons:
-    handler: functions/lessons/getLessons.handler
-    events:
-      - http:
-          path: /get-lessons
-          method: get
-          private: true
-          cors: true
+  # getLessons:
+  #   handler: functions/lessons/getLessons.handler
+  #   events:
+  #     - http:
+  #         path: /get-lessons
+  #         method: get
+  #         private: true
+  #         cors: true
 
-  getSingleLesson:
-    handler: functions/lessons/getSingleLesson.handler
-    events:
-      - http:
-          path: lesson/{id}
-          method: get
-          private: true
-          cors: true
+  # getSingleLesson:
+  #   handler: functions/lessons/getSingleLesson.handler
+  #   events:
+  #     - http:
+  #         path: lesson/{id}
+  #         method: get
+  #         private: true
+  #         cors: true
 
-  updateLesson:
-    handler: functions/lessons/updateLesson.handler
-    events:
-      - http:
-          path: lesson/{id}
-          method: put
-          private: true
-          cors: true
+  # updateLesson:
+  #   handler: functions/lessons/updateLesson.handler
+  #   events:
+  #     - http:
+  #         path: lesson/{id}
+  #         method: put
+  #         private: true
+  #         cors: true
 
-  deleteLesson:
-    handler: functions/lessons/deleteLesson.handler
+  # deleteLesson:
+  #   handler: functions/lessons/deleteLesson.handler
+  #   events:
+  #     - http:
+  #         path: lesson/{id}
+  #         method: delete
+  #         private: true
+  #         cors: true
+  # createUserSchema:
+  #   handler: functions/schemas/createUserSchema.handler
+  #   events:
+  #     - http:
+  #         path: /create-schema
+  #         method: POST
+  #         private: true
+  #         cors: true
+  runSolution:
+    handler: functions/queries/runSolution.handler
     events:
       - http:
-          path: lesson/{id}
-          method: delete
+          path: /run-solution
+          method: POST
           private: true
           cors: true
-  createUserSchema:
-    handler: functions/schemas/createUserSchema.handler
+  runSubmission:
+    handler: functions/queries/runSubmission.handler
     events:
       - http:
-          path: /create-schema
+          path: /run-submission
           method: POST
           private: true
           cors: true

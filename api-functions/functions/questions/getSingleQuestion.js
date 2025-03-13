@@ -1,6 +1,10 @@
 import { sendResponse } from "../../helpers/helpers.js";
-import { getItem, fetchItemsByIds } from "../../helpers/dynamodb.js";
-import { TABLE_NAME } from "../../helpers/constants.js";
+import {
+  getItem,
+  fetchItemsByIds,
+  fetchAllItemByDynamodbIndex,
+} from "../../helpers/dynamodb.js";
+import { QUERY_STATUS, TABLE_NAME } from "../../helpers/constants.js";
 
 export const handler = async (event) => {
   try {
@@ -10,6 +14,7 @@ export const handler = async (event) => {
       return sendResponse(400, "Missing question ID", null);
     }
 
+    // Get the current question by ID
     const tableName = TABLE_NAME.QUESTIONS;
     const questionResult = await getItem(tableName, { id });
 
@@ -35,7 +40,7 @@ export const handler = async (event) => {
     // Enrich question with tag and company details
     const enrichedQuestion = {
       ...question,
-      tags: tagIds?.map(
+      tags: tagIds.map(
         (tagId) =>
           tags.find((t) => t.id === tagId) || { id: tagId, name: "Unknown" }
       ),
@@ -47,6 +52,46 @@ export const handler = async (event) => {
           }
       ),
     };
+
+    // Fetch all active questions using the provided snippet.
+    const status = QUERY_STATUS.ACTIVE;
+    let questions = await fetchAllItemByDynamodbIndex({
+      TableName: TABLE_NAME.QUESTIONS,
+      IndexName: "byStatus",
+      KeyConditionExpression: "#status = :status",
+      ExpressionAttributeValues: {
+        ":status": status,
+      },
+      ExpressionAttributeNames: {
+        "#status": "status",
+      },
+    });
+
+    // Sort the questions array based on questionNo
+    questions = questions.sort((a, b) => a.questionNo - b.questionNo);
+
+    // Determine the index of the current question in the sorted list
+    const currentQuestionNo = question.questionNo;
+    const currentIndex = questions.findIndex(
+      (q) => q.questionNo === currentQuestionNo
+    );
+
+    let prevQuestion = null;
+    let nextQuestion = null;
+
+    if (currentIndex !== -1) {
+      // Previous question: one with a lower questionNo if it exists
+      if (currentIndex > 0) {
+        prevQuestion = questions[currentIndex - 1];
+      }
+      // Next question: one with a higher questionNo if it exists
+      if (currentIndex < questions.length - 1) {
+        nextQuestion = questions[currentIndex + 1];
+      }
+    }
+
+    enrichedQuestion.prevQuestion = prevQuestion;
+    enrichedQuestion.nextQuestion = nextQuestion;
 
     return sendResponse(200, "Question fetched successfully", enrichedQuestion);
   } catch (error) {

@@ -26,7 +26,7 @@ export const handler = async (event, context, callback) => {
     );
   }
 
-  // If it's a reply, fetch the parent comment to inherit the databaseId
+  // If it's a reply, fetch the parent comment to inherit the entityId
   if (params.repliedTo) {
     const parentCommentParams = {
       TableName: TABLE_NAME.COMMENTS,
@@ -43,8 +43,8 @@ export const handler = async (event, context, callback) => {
       return sendResponse(404, "Parent comment not found", null);
     }
 
-    // Inherit the databaseId from the parent comment
-    params.databaseId = parentCommentResult.Item.databaseId;
+    // Inherit the entityId from the parent comment
+    params.entityId = parentCommentResult.Item.entityId;
   }
 
   if (!params.repliedTo) {

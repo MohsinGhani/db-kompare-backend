@@ -1,5 +1,8 @@
 // src/functions/createQuestion.js
-import { createItemInDynamoDB } from "../../helpers/dynamodb.js";
+import {
+  createItemInDynamoDB,
+  fetchAllItemByDynamodbIndex,
+} from "../../helpers/dynamodb.js";
 import { v4 as uuidv4 } from "uuid";
 import { QUERY_STATUS, TABLE_NAME } from "../../helpers/constants.js";
 import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
@@ -28,6 +31,8 @@ export const handler = async (event) => {
       questionType,
       access,
       proper_query,
+      // Optionally, you can pass in solutionData if available
+      solutionData, // expected solution output in canonical JSON format (optional)
     } = JSON.parse(event.body || "{}");
 
     // Validate required fields
@@ -96,7 +101,7 @@ export const handler = async (event) => {
       );
     }
 
-    // fetching all question to add question no
+    // Fetch all questions to add question number
     const questions = await fetchAllItemByDynamodbIndex({
       TableName: TABLE_NAME.QUESTIONS,
       IndexName: "byStatus",
@@ -128,15 +133,33 @@ export const handler = async (event) => {
       status: QUERY_STATUS.ACTIVE,
       access,
       proper_query,
-      questionNo: +questions?.length,
+      questionNo: +questions?.length + 1,
     };
 
-    // Create the item in DynamoDB
+    // Create the question item in the QUESTIONS table
     await createItemInDynamoDB(
       questionItem,
       TABLE_NAME.QUESTIONS,
       { "#id": "id" },
       "attribute_not_exists(#id)",
+      false
+    );
+
+    // Create the corresponding solution item in the SOLUTIONS table
+    // Use provided solutionData if available; otherwise default to an empty array.
+    const solutionItem = {
+      questionId: questionItem.id,
+      status: QUERY_STATUS.ACTIVE,
+      solutionData: solutionData || [],
+      createdAt: getTimestamp(),
+      updatedAt: getTimestamp(),
+    };
+
+    await createItemInDynamoDB(
+      solutionItem,
+      TABLE_NAME.SOLUTIONS, // Make sure this table name is defined in your TABLE_NAME constant
+      { "#questionId": "questionId" },
+      "attribute_not_exists(#questionId)",
       false
     );
 

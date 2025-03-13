@@ -118,9 +118,9 @@ export const handler = async (event) => {
     }
 
     // Filter out objects with ui_display set to "NO"
-    const filteredData = items.filter((db) => db.ui_display !== "NO");
+    // const filteredData = items.filter((db) => db.ui_display !== "NO");
 
-    return sendResponse(200, "Fetch metrics successfully", filteredData);
+    return sendResponse(200, "Fetch metrics successfully", items);
   } catch (error) {
     console.error("Error fetching metrics:", error);
     return sendResponse(500, "Failed to fetch metrics", {
@@ -199,7 +199,6 @@ const transformAggregatedData = async (items) => {
     if (!acc[dbToolId]) {
       acc[dbToolId] = {
         dbToolId,
-        categoryDetail: "Fetching...", // Placeholder for category detail
         metrics: [],
       };
     }
@@ -261,19 +260,19 @@ const applyRankingLogic = async (dailyItems) => {
     const rankingData = rankingResult[0];
     if (rankingData.rankings && Array.isArray(rankingData.rankings)) {
       rankingData.rankings.forEach((r) => {
-        rankingMap[r.database_id] = r.rank;
+        rankingMap[r.dbtool_id] = r.rank;
       });
     }
   }
 
   dailyItems.sort((a, b) => {
     const rankA =
-      rankingMap[a.dbtool_id] !== undefined
-        ? rankingMap[a.dbtool_id]
+      rankingMap[a.dbToolId] !== undefined
+        ? rankingMap[a.dbToolId]
         : Number.MAX_SAFE_INTEGER;
     const rankB =
-      rankingMap[b.dbtool_id] !== undefined
-        ? rankingMap[b.dbtool_id]
+      rankingMap[b.dbToolId] !== undefined
+        ? rankingMap[b.dbToolId]
         : Number.MAX_SAFE_INTEGER;
     return rankA - rankB;
   });

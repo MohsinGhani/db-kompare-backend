@@ -26,10 +26,10 @@ const fetchDatabaseCount = async (status) => {
   });
 
   // Filter out items that contain ui_display: "NO"
-  const filteredData = result.filter((item) => item.ui_display !== "NO");
+  // const filteredData = result.filter((item) => item.ui_display !== "NO");
 
   // Return the count of filtered items
-  return filteredData.length || 0;
+  return result.length || 0;
 };
 
 export const handler = async (event, context, callback) => {
@@ -37,7 +37,8 @@ export const handler = async (event, context, callback) => {
 
   try {
     // Get status from query parameters or default to ALL
-    const status = event.queryStringParameters?.status || DATABASE_STATUS.ACTIVE;
+    const status =
+      event.queryStringParameters?.status || DATABASE_STATUS.ACTIVE;
 
     // Validate the status input
     if (
