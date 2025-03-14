@@ -1,7 +1,6 @@
-import prismaReadOnly from "../../db/prismaReadOnly.js";
-import prismaCommonClient from "../../db/prismaCommonClient.js";
-import { getItem } from "../../helpers/dynamodb.js";
 import { TABLE_NAME } from "../../helpers/constants.js";
+import { executeReadOnlyQuery, executeCommonQuery } from "../../db/index.js";
+import { getItem } from "../../helpers/dynamodb.js";
 import { safeSerialize, sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
@@ -17,19 +16,21 @@ export const handler = async (event) => {
       id: questionId,
     });
 
-    // Determine which Prisma client to use based on access rights
-    const client = questionResult?.Item?.access?.includes("read-only")
-      ? prismaReadOnly
-      : prismaCommonClient;
+    // Determine which query function to use based on access rights
+    const runQuery = questionResult?.Item?.access?.includes("read-only")
+      ? executeReadOnlyQuery
+      : executeCommonQuery;
 
-    // Execute the user query using Prisma's raw query by prepending EXPLAIN ANALYZE.
-    const result = await client.$queryRawUnsafe(query);
+    // Execute the user's query directly using the pg client.
+    // This function returns an object with { rows, executionTime }
+    const result = await runQuery(query);
 
-    // Serialize the result safely.
-    const safeResult = safeSerialize(result);
-
-    // Return both the full plan and the execution time.
-    return sendResponse(200, "Query executed successfully", safeResult);
+    const resultObj = {
+      data: result.rows,
+      executionTime: result.executionTime,
+    };
+    // Return the result and the execution time.
+    return sendResponse(200, "Query executed successfully", resultObj);
   } catch (error) {
     console.error("Error executing query:", error);
     const match = error.message.match(/Message:\s*`([^`]+)`/);

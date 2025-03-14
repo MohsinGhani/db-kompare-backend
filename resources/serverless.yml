@@ -260,6 +260,59 @@ resources:
                 KeyType: HASH # GSI partition key to query by status
             Projection:
               ProjectionType: ALL
+
+    Solutions:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-solutions-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: questionId
+            AttributeType: S # Unique identifier for each solution (questionId)
+          - AttributeName: status
+            AttributeType: S # Status (e.g., "active", "inactive")
+        KeySchema:
+          - AttributeName: questionId
+            KeyType: HASH # Primary (partition) key
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH # GSI partition key on status
+            Projection:
+              ProjectionType: ALL # Include all attributes in the index
+
+    Submissions:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-submissions-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S # Primary key for each submission
+          - AttributeName: userId
+            AttributeType: S # To associate the submission with a user
+          - AttributeName: questionId
+            AttributeType: S # To associate the submission with a user
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH # Primary (partition) key
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byUserId
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byQuestionId
+            KeySchema:
+              - AttributeName: questionId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
     Companies:
       Type: AWS::DynamoDB::Table
       Properties:

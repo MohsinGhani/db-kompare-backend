@@ -1,6 +1,5 @@
 import { TABLE_NAME } from "../../helpers/constants.js";
-import prismaReadOnly from "../../db/prismaReadOnly.js";
-import prismaCommonClient from "../../db/prismaCommonClient.js";
+import { executeReadOnlyQuery, executeCommonQuery } from "../../db/index.js";
 import { createItemInDynamoDB, getItem } from "../../helpers/dynamodb.js";
 import {
   getTimestamp,
@@ -17,6 +16,7 @@ export const handler = async (event) => {
     return sendResponse(400, "Missing questionId or query", null);
   }
 
+  // Fetch question details from DynamoDB
   let questionResult;
   try {
     questionResult = await getItem(TABLE_NAME.QUESTIONS, { id: questionId });
@@ -24,14 +24,16 @@ export const handler = async (event) => {
     return sendResponse(500, "Error fetching question", error.message);
   }
 
-  const client = questionResult?.Item?.access?.includes("read-only")
-    ? prismaReadOnly
-    : prismaCommonClient;
-  let resultObj;
+  // Determine which pool function to use based on access rights
+  const runQuery = questionResult?.Item?.access?.includes("read-only")
+    ? executeReadOnlyQuery
+    : executeCommonQuery;
+
+  let queryResult;
   try {
-    const safeQuery = `SELECT readonly_schema.run_query_with_timing('${userQuery}') AS result`;
-    // $queryRawUnsafe is used here for demonstration; ensure you handle SQL injection risks!
-    [resultObj] = await client.$queryRawUnsafe(safeQuery);
+    // Directly run the user's query without wrapping it
+    const safeQuery = userQuery;
+    queryResult = await runQuery(safeQuery);
   } catch (error) {
     console.error("Error executing query:", error);
     const match = error.message.match(/Message:\s*`([^`]+)`/);
@@ -39,11 +41,17 @@ export const handler = async (event) => {
     return sendResponse(500, { error: partialMessage }, null);
   }
 
+  // Our pool functions return an object with { rows, executionTime }
+  // We'll build our result object accordingly.
+  const resultObj = {
+    data: queryResult.rows,
+    executionTime: queryResult.executionTime,
+  };
+
+  // Fetch the expected solution from DynamoDB
   let expectedSolution;
   try {
-    const data = await getItem(TABLE_NAME.SOLUTIONS, {
-      questionId: questionId,
-    });
+    const data = await getItem(TABLE_NAME.SOLUTIONS, { questionId });
     // Assume the solution is stored in the 'solutionData' field
     expectedSolution = data.Item.solutionData;
   } catch (error) {
@@ -55,7 +63,7 @@ export const handler = async (event) => {
     );
   }
 
-  // Normalize the results by sorting arrays of objects by all keys
+  // Normalize arrays of objects by sorting based on object keys
   const normalize = (data) => {
     if (Array.isArray(data) && data.length > 0) {
       const keys = Object.keys(data[0]);
@@ -64,7 +72,7 @@ export const handler = async (event) => {
     return data;
   };
 
-  const normalizedUserResult = normalize(resultObj?.result?.data);
+  const normalizedUserResult = normalize(resultObj.data);
   const normalizedExpected = normalize(expectedSolution);
   const isCorrect = _.isEqual(normalizedUserResult, normalizedExpected);
 
@@ -72,7 +80,7 @@ export const handler = async (event) => {
   const submissionItem = {
     id: uuidv4(),
     userId,
-    executiontime: resultObj?.result?.executionTime,
+    executiontime: resultObj.executionTime,
     timetaken,
     userQuery,
     queryStatus: isCorrect,
@@ -80,7 +88,7 @@ export const handler = async (event) => {
     questionId,
   };
 
-  // Insert the submission item into the SUBMISSIONS table
+  // Insert the submission item into the SUBMISSIONS table in DynamoDB
   await createItemInDynamoDB(
     submissionItem,
     TABLE_NAME.SUBMISSIONS,
