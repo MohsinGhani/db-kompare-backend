@@ -2,6 +2,7 @@ import { TABLE_NAME } from "../../helpers/constants.js";
 import { executeReadOnlyQuery, executeCommonQuery } from "../../db/index.js";
 import { createItemInDynamoDB, getItem } from "../../helpers/dynamodb.js";
 import {
+  formatDateLocal,
   getTimestamp,
   safeSerialize,
   sendResponse,
@@ -62,18 +63,51 @@ export const handler = async (event) => {
       error.message
     );
   }
+  function genericNormalize(data) {
+    if (!Array.isArray(data)) return data;
 
-  // Normalize arrays of objects by sorting based on object keys
-  const normalize = (data) => {
-    if (Array.isArray(data) && data.length > 0) {
-      const keys = Object.keys(data[0]);
-      return _.sortBy(data, keys);
-    }
-    return data;
-  };
+    // Modified regex to match full ISO strings (if you ever get strings)
+    const isoDateRegex =
+      /^(\d{4}-\d{2}-\d{2})(T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$/;
 
-  const normalizedUserResult = normalize(resultObj.data);
-  const normalizedExpected = normalize(expectedSolution);
+    return data
+      .map((obj) => {
+        const normalized = {};
+        Object.keys(obj)
+          .sort()
+          .forEach((key) => {
+            let value = obj[key];
+
+            // If the value is a Date object, convert it using moment.
+            if (value instanceof Date) {
+              value = formatDateLocal(value);
+            } else if (typeof value === "string") {
+              const trimmedValue = value.trim();
+              // If the string matches an ISO date, convert it.
+              if (isoDateRegex.test(trimmedValue)) {
+                // Check if there's a time portion
+                const match = isoDateRegex.exec(trimmedValue);
+                if (match[2]) {
+                  value = formatDateLocal(new Date(trimmedValue));
+                } else {
+                  value = trimmedValue;
+                }
+              }
+              // Convert numeric strings to numbers.
+              else if (/^\d+$/.test(trimmedValue)) {
+                value = Number(trimmedValue);
+              }
+            }
+            normalized[key] = value;
+          });
+        return normalized;
+      })
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+
+  const normalizedUserResult = genericNormalize(resultObj.data);
+  const normalizedExpected = genericNormalize(expectedSolution);
+
   const isCorrect = _.isEqual(normalizedUserResult, normalizedExpected);
 
   // Create the submission item
@@ -99,7 +133,7 @@ export const handler = async (event) => {
 
   const responseData = safeSerialize({
     correct: isCorrect,
-    userOutput: normalizedUserResult,
+    userOutput: resultObj.data,
     expectedOutput: normalizedExpected,
   });
 

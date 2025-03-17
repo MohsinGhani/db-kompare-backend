@@ -31,3 +31,12 @@ export const safeSerialize = (data) =>
 export const getTimestamp = () => {
   return new Date().getTime();
 };
+
+export const formatDateLocal = (value) => {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  // getMonth() returns 0-indexed months, so add 1 and pad if needed
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};

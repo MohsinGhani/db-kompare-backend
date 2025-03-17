@@ -402,6 +402,7 @@ functions:
 
   getDbToolMetrices:
     handler: functions/dbtools-metrices/getDbToolMetrices.handler
+    timeout: 300
     events:
       - http:
           path: /get-dbtools-metrices
