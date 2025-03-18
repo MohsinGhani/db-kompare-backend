@@ -134,6 +134,7 @@ export const handler = async (event) => {
       access,
       proper_query,
       questionNo: +questions?.length + 1,
+      solutionData: solutionData || [],
     };
 
     // Create the question item in the QUESTIONS table
@@ -142,24 +143,6 @@ export const handler = async (event) => {
       TABLE_NAME.QUESTIONS,
       { "#id": "id" },
       "attribute_not_exists(#id)",
-      false
-    );
-
-    // Create the corresponding solution item in the SOLUTIONS table
-    // Use provided solutionData if available; otherwise default to an empty array.
-    const solutionItem = {
-      questionId: questionItem.id,
-      status: QUERY_STATUS.ACTIVE,
-      solutionData: solutionData || [],
-      createdAt: getTimestamp(),
-      updatedAt: getTimestamp(),
-    };
-
-    await createItemInDynamoDB(
-      solutionItem,
-      TABLE_NAME.SOLUTIONS, // Make sure this table name is defined in your TABLE_NAME constant
-      { "#questionId": "questionId" },
-      "attribute_not_exists(#questionId)",
       false
     );
 

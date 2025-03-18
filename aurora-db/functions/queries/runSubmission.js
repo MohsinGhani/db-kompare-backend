@@ -49,20 +49,6 @@ export const handler = async (event) => {
     executionTime: queryResult.executionTime,
   };
 
-  // Fetch the expected solution from DynamoDB
-  let expectedSolution;
-  try {
-    const data = await getItem(TABLE_NAME.SOLUTIONS, { questionId });
-    // Assume the solution is stored in the 'solutionData' field
-    expectedSolution = data.Item.solutionData;
-  } catch (error) {
-    console.error("Error getting solution:", error);
-    return sendResponse(
-      500,
-      "Error fetching solution from DynamoDB",
-      error.message
-    );
-  }
   function genericNormalize(data) {
     if (!Array.isArray(data)) return data;
 
@@ -106,7 +92,9 @@ export const handler = async (event) => {
   }
 
   const normalizedUserResult = genericNormalize(resultObj.data);
-  const normalizedExpected = genericNormalize(expectedSolution);
+  const normalizedExpected = genericNormalize(
+    questionResult?.Item?.solutionData
+  );
 
   const isCorrect = _.isEqual(normalizedUserResult, normalizedExpected);
 

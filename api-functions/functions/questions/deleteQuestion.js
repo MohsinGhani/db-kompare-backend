@@ -31,15 +31,6 @@ export const handler = async (event) => {
       return sendResponse(404, "Question not found or already deleted", null);
     }
 
-    // Delete the corresponding solution from the SOLUTIONS table
-    const solutionTable = TABLE_NAME.SOLUTIONS;
-    await deleteItem(
-      solutionTable,
-      { questionId: id },
-      { "#questionId": "questionId" },
-      "attribute_exists(#questionId)"
-    );
-
     return sendResponse(
       200,
       "Question and its solution deleted successfully",
