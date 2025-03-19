@@ -35,11 +35,7 @@ export const handler = async (event) => {
     // -------- FOR LOGGED IN USERS --------
     // If userId is provided, process submissions and calculate progress
     if (userId) {
-      const submissions = await getUserSubmission(userId);
-
-      if (!submissions || submissions.length === 0) {
-        return sendResponse(404, "No submissions found", null);
-      }
+      const submissions = (await getUserSubmission(userId)) || [];
 
       // Group submissions by questionId and select only the latest submission for each question
       const latestSubmissionsByQuestion = submissions.reduce(

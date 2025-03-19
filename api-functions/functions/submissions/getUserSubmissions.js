@@ -26,11 +26,7 @@ export const handler = async (event) => {
       },
     };
 
-    const submissions = await fetchAllItemByDynamodbIndex(params);
-
-    if (!submissions || submissions.length === 0) {
-      return sendResponse(404, "No submissions found", null);
-    }
+    const submissions = (await fetchAllItemByDynamodbIndex(params)) || [];
 
     // Group submissions by questionId and select only the latest submission for each question
     const latestSubmissionsByQuestion = submissions.reduce(
@@ -46,15 +42,16 @@ export const handler = async (event) => {
     );
 
     // Convert the grouped object into an array of latest submissions
-    const latestSubmissions = Object.values(latestSubmissionsByQuestion);
+    const latestSubmissions = Object.values(latestSubmissionsByQuestion) || [];
 
     // Optionally enrich each submission with user details
-    const enrichedSubmissions = await Promise.all(
-      latestSubmissions.map(async (sub) => ({
-        ...sub,
-        user: await fetchUserById(sub.userId),
-      }))
-    );
+    const enrichedSubmissions =
+      (await Promise.all(
+        latestSubmissions.map(async (sub) => ({
+          ...sub,
+          user: await fetchUserById(sub.userId),
+        }))
+      )) || [];
 
     return sendResponse(
       200,

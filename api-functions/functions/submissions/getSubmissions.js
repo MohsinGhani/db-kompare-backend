@@ -58,12 +58,13 @@ export const handler = async (event) => {
     const submissions = await fetchAllItemByDynamodbIndex(params);
 
     // Optionally, you can enrich each submission with user details if needed.
-    const data = await Promise.all(
-      submissions.map(async (item) => ({
-        ...item,
-        user: await fetchUserById(item?.userId),
-      }))
-    );
+    const data =
+      (await Promise.all(
+        submissions.map(async (item) => ({
+          ...item,
+          user: await fetchUserById(item?.userId),
+        }))
+      )) || [];
 
     return sendResponse(200, "Submissions fetched successfully", data);
   } catch (error) {

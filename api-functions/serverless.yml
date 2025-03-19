@@ -261,6 +261,16 @@ functions:
           method: get
           private: true
           cors: true
+
+  getSubmissionProgress:
+    handler: functions/submissions/getSubmissionProgress.handler
+    events:
+      - http:
+          path: /get-submission-progress
+          method: get
+          private: true
+          cors: true
+
   getBlogs:
     handler: functions/blogs/getBlogs.handler
     events:
