@@ -11,7 +11,7 @@ const readonlyPool = new Pool({
 
 // Create a pool for the common (read-write) connection
 const commonPool = new Pool({
-  connectionString: process.env.DATABASE_URL_COMMON,
+  connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false, // disable verification
   },
@@ -41,6 +41,25 @@ export async function executeCommonQuery(query, params = []) {
     const executionTime = Date.now() - startTime;
     return { rows: result.rows, executionTime };
   } catch (err) {
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function executeUserQuery(userId, query, params = []) {
+  const client = await commonPool.connect();
+  try {
+    await client.query("BEGIN");
+    // Set the search_path to the user-specific schema, e.g., user_123
+    await client.query(`SET LOCAL search_path TO user_${userId}`);
+    const startTime = Date.now();
+    const result = await client.query(query, params);
+    const executionTime = Date.now() - startTime;
+    await client.query("COMMIT");
+    return { rows: result.rows, executionTime };
+  } catch (err) {
+    await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();

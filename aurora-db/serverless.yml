@@ -53,20 +53,6 @@ plugins:
   - serverless-prune-plugin
 
 functions:
-  # queryDB:
-  #   handler: functions/handler.queryDB
-  #   events:
-  #     - http:
-  #         path: query
-  #         method: post
-
-  # getAllAssignments:
-  #   handler: functions/assignments/getAllAssignments.handler
-  #   events:
-  #     - http:
-  #         path: /get-assignments
-  #         method: get
-
   ## ---------Lessons functions---------
   # createLesson:
   #   handler: functions/lessons/createLesson.handler
@@ -136,98 +122,6 @@ functions:
           method: POST
           private: true
           cors: true
-# ## ---------Company functions---------
-#   createCompany:
-#     handler: functions/company/createCompany.handler
-#     events:
-#       - http:
-#           path: /create-company
-#           method: post
-#           private: true
-#           cors: true
-
-# ## --------- Question functions---------
-#   createQuestion:
-#     handler: functions/questions/createQuestion.handler
-#     events:
-#       - http:
-#           path: /create-question
-#           method: post
-#           private: true
-#           cors: true
-
-#   getQuestions:
-#     handler: functions/questions/getQuestions.handler
-#     events:
-#       - http:
-#           path: /get-questions
-#           method: get
-#           private: true
-#           cors: true
-
-#   getSingleQuestion:
-#     handler: functions/questions/getSingleQuestion.handler
-#     events:
-#       - http:
-#           path: question/{slug}
-#           method: get
-#           private: true
-#           cors: true
-
-#   updateQuestion:
-#     handler: functions/questions/updateQuestion.handler
-#     events:
-#       - http:
-#           path: question/{slug}
-#           method: put
-#           private: true
-#           cors: true
-
-#   deleteQuestion:
-#     handler: functions/questions/deleteQuestion.handler
-#     events:
-#       - http:
-#           path: question/{slug}
-#           method: delete
-#           private: true
-#           cors: true
-
-#   ## --------- TAGS functions---------
-#   createTag:
-#     handler: functions/tags/createTag.handler
-#     events:
-#       - http:
-#           path: /create-tag
-#           method: post
-#           private: true
-#           cors: true
-
-#   getTags:
-#     handler: functions/tags/getTags.handler
-#     events:
-#       - http:
-#           path: /get-tags
-#           method: get
-#           private: true
-#           cors: true
-
-#   updateTag:
-#     handler: functions/tags/updateTag.handler
-#     events:
-#       - http:
-#           path: tag/{id}
-#           method: put
-#           private: true
-#           cors: true
-
-#   deleteTag:
-#     handler: functions/tags/deleteTag.handler
-#     events:
-#       - http:
-#           path: tag/{id}
-#           method: delete
-#           private: true
-#           cors: true
 
 resources:
   Resources:
