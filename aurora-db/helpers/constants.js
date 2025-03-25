@@ -4,6 +4,8 @@ export const TABLE_NAME = {
   QUESTIONS: "db-kompare-questions-dev",
   SOLUTIONS: "db-kompare-solutions-dev",
   SUBMISSIONS: "db-kompare-submissions-dev",
+  FIDDLES: "db-kompare-fiddles-dev",
+  USERS: "db-kompare-users-dev",
 };
 
 export const LessonCategory = {

@@ -26,6 +26,8 @@ provider:
         - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-questions-dev"
         - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-solutions-dev"
         - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-submissions-dev"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-fiddles-dev"
+        - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-fiddles-dev/index/*"
   environment:
     PG_HOST: ${self:custom.outputs.AuroraClusterEndpoint}
     PG_USER: "dbadmin"
@@ -119,6 +121,38 @@ functions:
     events:
       - http:
           path: /run-submission
+          method: POST
+          private: true
+          cors: true
+  addFiddle:
+    handler: functions/runSQL/addFiddle.handler
+    events:
+      - http:
+          path: /add-fiddle
+          method: POST
+          private: true
+          cors: true
+  getFiddle:
+    handler: functions/runSQL/getFiddle.handler
+    events:
+      - http:
+          path: /get-fiddle/{id}
+          method: get
+          private: true
+          cors: true
+  getUserFiddles:
+    handler: functions/runSQL/getUserFiddles.handler
+    events:
+      - http:
+          path: /get-user-fiddles
+          method: get
+          private: true
+          cors: true
+  executeQuery:
+    handler: functions/runSQL/executeQuery.handler
+    events:
+      - http:
+          path: /execute-query
           method: POST
           private: true
           cors: true

@@ -1,7 +1,5 @@
-import { TABLE_NAME } from "../../helpers/constants.js";
-import { executeReadOnlyQuery, executeCommonQuery } from "../../db/index.js";
-import { getItem } from "../../helpers/dynamodb.js";
-import { safeSerialize, sendResponse } from "../../helpers/helpers.js";
+import { executeUserQuery } from "../../db/index.js";
+import { sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
@@ -10,10 +8,7 @@ export const handler = async (event) => {
     if (!userId || !query) {
       return sendResponse(400, "Missing userId or query", null);
     }
-
-    // Execute the user's query directly using the pg client.
-    // This function returns an object with { rows, executionTime }
-    const result = await runQuery(query);
+    const result = await executeUserQuery(userId, query);
 
     const resultObj = {
       data: result.rows,

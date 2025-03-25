@@ -261,28 +261,6 @@ resources:
             Projection:
               ProjectionType: ALL
 
-    Solutions:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: db-kompare-solutions-${self:provider.stage}
-        DeletionProtectionEnabled: true
-        AttributeDefinitions:
-          - AttributeName: questionId
-            AttributeType: S # Unique identifier for each solution (questionId)
-          - AttributeName: status
-            AttributeType: S # Status (e.g., "active", "inactive")
-        KeySchema:
-          - AttributeName: questionId
-            KeyType: HASH # Primary (partition) key
-        BillingMode: PAY_PER_REQUEST
-        GlobalSecondaryIndexes:
-          - IndexName: byStatus
-            KeySchema:
-              - AttributeName: status
-                KeyType: HASH # GSI partition key on status
-            Projection:
-              ProjectionType: ALL # Include all attributes in the index
-
     Submissions:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -309,6 +287,28 @@ resources:
           - IndexName: byQuestionId
             KeySchema:
               - AttributeName: questionId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    Fiddles:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-fiddles-${self:provider.stage}
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S # Primary key
+          - AttributeName: ownerId
+            AttributeType: S # For GSI on owner
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH # Primary (partition) key
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: byOwnerId
+            KeySchema:
+              - AttributeName: ownerId
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
