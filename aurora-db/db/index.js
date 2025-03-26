@@ -52,7 +52,7 @@ export async function executeUserQuery(userId, query, params = []) {
   try {
     await client.query("BEGIN");
     // Set the search_path to the user-specific schema, e.g., user_123
-    await client.query(`SET LOCAL search_path TO user_${userId}`);
+    await client.query(`SET LOCAL search_path TO "user_${userId}"`);
     const startTime = Date.now();
     const result = await client.query(query, params);
     const executionTime = Date.now() - startTime;
