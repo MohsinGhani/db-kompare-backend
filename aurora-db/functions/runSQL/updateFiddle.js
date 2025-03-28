@@ -1,25 +1,24 @@
 import { TABLE_NAME } from "../../helpers/constants.js";
-import { updateItemInDynamoDB } from "../../helpers/dynamodb.js";
+import { getItem, updateItemInDynamoDB } from "../../helpers/dynamodb.js";
 import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
-    // Parse the incoming request body
-    const body = JSON.parse(event.body);
-
-    const {
-      id, // ID of the fiddle to update
-      name,
-      databaseType,
-      query,
-      dbStructure,
-      tables,
-    } = body;
-
+    // Assume the fiddle id is passed as a path parameter.
+    const { id } = event.pathParameters || {};
     // Basic validation
     if (!id) {
       return sendResponse(400, "Missing 'id' for the fiddle to update.", null);
     }
+
+    const result = await getItem(TABLE_NAME.FIDDLES, { id });
+
+    if (!result.Item) {
+      return sendResponse(404, "Fiddle not found", null);
+    }
+
+    const { name, databaseType, query, dbStructure, tables } =
+      JSON.parse(event.body) || {};
 
     // Set the new updatedAt timestamp
     const updatedAt = getTimestamp();

@@ -1,4 +1,5 @@
 import { executeCommonQuery } from "../../db/index.js";
+import { sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   // Construct the schema name (e.g., "user_123")
@@ -50,11 +51,12 @@ export const handler = async (event) => {
     `;
     await executeCommonQuery(insertPostsDataQuery);
 
-    return {
-      message: `Schema ${schemaName}, tables, and sample data created successfully.`,
-    };
+    return sendResponse(200, "Schema and tables created successfully.", true);
   } catch (error) {
-    console.error("Error creating schema, tables, or inserting data:", error);
-    throw error;
+    sendResponse(
+      500,
+      "Error creating schema, tables, or inserting data.",
+      null
+    );
   }
 };

@@ -132,6 +132,14 @@ functions:
           method: POST
           private: true
           cors: true
+  updateFiddle:
+    handler: functions/runSQL/updateFiddle.handler
+    events:
+      - http:
+          path: /update-fiddle/{id}
+          method: put
+          private: true
+          cors: true
   getFiddle:
     handler: functions/runSQL/getFiddle.handler
     events:
@@ -153,6 +161,14 @@ functions:
     events:
       - http:
           path: /execute-query
+          method: POST
+          private: true
+          cors: true
+  createUserSchema:
+    handler: functions/schemas/createUserSchema.handler
+    events:
+      - http:
+          path: /create-schema
           method: POST
           private: true
           cors: true
