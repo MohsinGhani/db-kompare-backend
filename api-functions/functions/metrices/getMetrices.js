@@ -214,7 +214,7 @@ const applyRankingLogic = async (dailyItems) => {
     return await fetchAllItemByDynamodbIndex(rankingQueryParams);
   };
 
-  let rankingResult = await getRankingDataForDate(getUTCYesterdayDate);
+  let rankingResult = await getRankingDataForDate(getUTCYesterdayDate());
   if (!rankingResult || rankingResult.length === 0) {
     rankingResult = await getRankingDataForDate(getUTCTwoDaysAgoDate);
   }

@@ -1,177 +1,137 @@
-import { fetchAllItemByDynamodbIndex } from "../../helpers/dynamodb.js";
 import {
-  DIFFICULTY,
-  QUERY_STATUS,
-  TABLE_NAME,
-} from "../../helpers/constants.js";
-import { sendResponse } from "../../helpers/helpers.js";
+  getYesterdayDate,
+  sendResponse,
+  calculateGitHubPopularity,
+} from "../../helpers/helpers.js";
+import { TABLE_NAME, DATABASE_STATUS } from "../../helpers/constants.js";
+import {
+  getItemByQuery,
+  fetchAllItemByDynamodbIndex,
+  batchWriteItems,
+} from "../../helpers/dynamodb.js";
+import { v4 as uuidv4 } from "uuid";
 
 export const handler = async (event) => {
+  const { date } = JSON.parse(event.body) || {};
   try {
-    // Expect a userId query parameter
-    const { userId } = event.queryStringParameters || {};
+    console.log("Fetching all active databases...");
 
-    // Fetch all active questions
-    const questions = await getQuestions();
+    // Fetch all active databases
+    const all_databases = await fetchAllDatabases();
 
-    // Categorize questions by difficulty
-    const difficultyGroups = {
-      EASY: [],
-      MEDIUM: [],
-      HARD: [],
-    };
+    // Filter out objects that explicitly contain "ui_display": "NO"
+    const databases = all_databases.filter((db) => db.ui_display !== "NO");
 
-    // Organize questions based on difficulty
-    questions.forEach((question) => {
-      if (question.difficulty === DIFFICULTY.EASY) {
-        difficultyGroups.EASY.push(question);
-      } else if (question.difficulty === DIFFICULTY.MEDIUM) {
-        difficultyGroups.MEDIUM.push(question);
-      } else if (question.difficulty === DIFFICULTY.HARD) {
-        difficultyGroups.HARD.push(question);
-      }
-    });
-
-    // -------- FOR LOGGED IN USERS --------
-    // If userId is provided, process submissions and calculate progress
-    if (userId) {
-      const submissions = await getUserSubmission(userId);
-
-      if (!submissions || submissions.length === 0) {
-        return sendResponse(404, "No submissions found", null);
-      }
-
-      // Group submissions by questionId and select only the latest submission for each question
-      const latestSubmissionsByQuestion = submissions.reduce(
-        (acc, submission) => {
-          const qid = submission.questionId;
-          // If no submission for this question exists yet, or if this submission's timestamp is greater, update it.
-          if (!acc[qid] || submission.submittedAt > acc[qid].submittedAt) {
-            acc[qid] = submission;
-          }
-          return acc;
-        },
-        {}
-      );
-
-      // Convert the grouped object into an array of latest submissions
-      const latestSubmissions = Object.values(latestSubmissionsByQuestion);
-
-      // Count the number of solved questions for each difficulty from the latest submissions
-      const progress = {
-        EASY: 0,
-        MEDIUM: 0,
-        HARD: 0,
-      };
-
-      latestSubmissions.forEach((submission) => {
-        const questionId = submission.questionId;
-        const question = questions.find((q) => q.id === questionId);
-
-        if (question) {
-          if (
-            question.difficulty === DIFFICULTY.EASY &&
-            submission.queryStatus
-          ) {
-            progress.EASY++;
-          } else if (
-            question.difficulty === DIFFICULTY.MEDIUM &&
-            submission.queryStatus
-          ) {
-            progress.MEDIUM++;
-          } else if (
-            question.difficulty === DIFFICULTY.HARD &&
-            submission.queryStatus
-          ) {
-            progress.HARD++;
-          }
-        }
-      });
-
-      // Prepare response data similar to the chart
-      const totalQuestions = {
-        EASY: difficultyGroups.EASY.length,
-        MEDIUM: difficultyGroups.MEDIUM.length,
-        HARD: difficultyGroups.HARD.length,
-      };
-
-      const totalSolved = {
-        EASY: progress.EASY,
-        MEDIUM: progress.MEDIUM,
-        HARD: progress.HARD,
-      };
-
-      // Calculate overall progress percentage
-      const totalQuestionsCount =
-        totalQuestions.EASY + totalQuestions.MEDIUM + totalQuestions.HARD;
-      const totalSolvedCount =
-        totalSolved.EASY + totalSolved.MEDIUM + totalSolved.HARD;
-      const progressPercentage = (totalSolvedCount / totalQuestionsCount) * 100;
-
-      return sendResponse(
-        200,
-        "Latest submissions and progress fetched successfully",
-        {
-          progressPercentage: progressPercentage.toFixed(2),
-          progress: {
-            EASY: { solved: totalSolved.EASY, total: totalQuestions.EASY },
-            MEDIUM: {
-              solved: totalSolved.MEDIUM,
-              total: totalQuestions.MEDIUM,
-            },
-            HARD: { solved: totalSolved.HARD, total: totalQuestions.HARD },
-          },
-        }
-      );
+    if (!databases || databases.length === 0) {
+      console.log("No active databases found.");
+      return sendResponse(404, "No active databases found.", null);
     }
 
-    // If userId is not provided, return only the total questions count by difficulty
-    const totalQuestions = {
-      EASY: difficultyGroups.EASY.length,
-      MEDIUM: difficultyGroups.MEDIUM.length,
-      HARD: difficultyGroups.HARD.length,
-    };
+    // Fetch metrics data for the previous day (yesterday)
+    const yesterday = date; // Ensure this returns the correct date string (e.g., '2024-11-23')
 
-    return sendResponse(200, "Questions count fetched successfully", {
-      progressPercentage: 0, // As no user is logged in, set progress to 0%
-      progress: {
-        EASY: { solved: 0, total: totalQuestions.EASY },
-        MEDIUM: { solved: 0, total: totalQuestions.MEDIUM },
-        HARD: { solved: 0, total: totalQuestions.HARD },
-      },
-    });
+    // Process each database in parallel using Promise.all
+    const databasesWithRankings = await Promise.all(
+      databases.map(async (db) => {
+        const { id: databaseId, name } = db;
+
+        // Check if metrics exist for this database and date
+        const metricsData = await getItemByQuery({
+          table: TABLE_NAME.METRICES,
+          KeyConditionExpression:
+            "#database_id = :database_id and #date = :date",
+          ExpressionAttributeNames: {
+            "#database_id": "database_id",
+            "#date": "date",
+          },
+          ExpressionAttributeValues: {
+            ":database_id": databaseId,
+            ":date": yesterday,
+          },
+        });
+
+        if (!metricsData || metricsData.Items.length === 0) {
+          console.log(`No metrics found for database_id: ${databaseId}`);
+          return null;
+        }
+
+        const metric = metricsData.Items[0];
+
+        // Extract ui_popularity.totalScore
+        const uiPopularity = metric?.ui_popularity;
+
+        if (!uiPopularity) {
+          console.log(`No ui_popularity found for database: ${name}`);
+          return null;
+        }
+
+        // Return the object containing database details and its popularity score
+        return {
+          databaseId,
+          name,
+          uiPopularity,
+        };
+      })
+    );
+
+    // Filter out any null results (i.e., databases with no metrics)
+    const validDatabases = databasesWithRankings.filter(Boolean);
+
+    // Sort the databases by ui_popularity.totalScore in descending order
+    const sortedDatabases = validDatabases.sort(
+      (a, b) => b.uiPopularity.totalScore - a.uiPopularity.totalScore
+    );
+
+    // Create the rankings array for the day
+    const rankings = sortedDatabases.map((db, index) => ({
+      database_id: db.databaseId,
+      db_name: db.name,
+      rank: index + 1, // Rank starts from 1
+      ui_popularity: db.uiPopularity,
+    }));
+
+    // Prepare the item to be written to DynamoDB
+    const item = {
+      id: uuidv4(),
+      date: yesterday,
+      includeMe: "YES", // You can change this as needed
+      rankings: rankings,
+    };
+    // Save the rankings in the DatabaseRankings table
+    await batchWriteItems(TABLE_NAME.DATABASE_RANKINGS, [item]);
+    console.log(`Successfully updated daily rankings for ${yesterday}`);
+
+    // Finally, sending the response
+    return sendResponse(200, "Rankings updated successfully", true);
   } catch (error) {
-    console.error("Error fetching submissions:", error);
-    return sendResponse(500, "Error fetching submissions", error.message);
+    console.error("Error updating rankings:", error);
+    return sendResponse(500, "Failed to update rankings", error.message);
   }
 };
 
-// -------------------    HELPER FUNCTIONS   ----------------------------
+// Fetch all active and inactive databases
+const fetchAllDatabases = async () => {
+  const [activeDatabases, inactiveDatabases] = await Promise.all([
+    fetchDatabasesByStatus(DATABASE_STATUS.ACTIVE),
+    fetchDatabasesByStatus(DATABASE_STATUS.INACTIVE),
+  ]);
 
-// Helper function to get user submissions from DynamoDB
-const getUserSubmission = async (userId) => {
-  const params = {
-    TableName: TABLE_NAME.SUBMISSIONS,
-    IndexName: "byUserId",
-    KeyConditionExpression: "userId = :userId",
-    ExpressionAttributeValues: {
-      ":userId": userId,
-    },
-  };
-  return await fetchAllItemByDynamodbIndex(params);
+  return [...(activeDatabases || []), ...(inactiveDatabases || [])].sort(
+    (a, b) =>
+      a.status === DATABASE_STATUS.ACTIVE &&
+      b.status === DATABASE_STATUS.INACTIVE
+        ? -1
+        : 1
+  );
 };
 
-// Helper function to get all active questions from DynamoDB
-const getQuestions = async () => {
-  return await fetchAllItemByDynamodbIndex({
-    TableName: TABLE_NAME.QUESTIONS,
+// Fetch databases based on their status
+const fetchDatabasesByStatus = async (status) => {
+  return fetchAllItemByDynamodbIndex({
+    TableName: TABLE_NAME.DATABASES,
     IndexName: "byStatus",
-    KeyConditionExpression: "#status = :status",
-    ExpressionAttributeValues: {
-      ":status": QUERY_STATUS.ACTIVE,
-    },
-    ExpressionAttributeNames: {
-      "#status": "status",
-    },
+    KeyConditionExpression: "#status = :statusVal",
+    ExpressionAttributeValues: { ":statusVal": status },
+    ExpressionAttributeNames: { "#status": "status" },
   });
 };

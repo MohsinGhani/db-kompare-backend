@@ -96,11 +96,15 @@ export const getTwoDaysAgoDate = moment()
   .subtract(2, "days")
   .format("YYYY-MM-DD");
 
-export const getUTCYesterdayDate = moment
-  .utc()
-  .subtract(1, "days")
-  .format("YYYY-MM-DD");
+export const getUTCYesterdayDate = () => {
+  const currentHour = moment.utc().hour();
+  // If UTC time is 12pm or later, subtract 1 day; otherwise, subtract 2 days.
+  const daysToSubtract = currentHour >= 12 ? 1 : 2;
+  return moment.utc().subtract(daysToSubtract, "days").format("YYYY-MM-DD");
+};
+
 export const getUTCTodayDate = moment.utc().format("YYYY-MM-DD");
+
 export const getUTCTwoDaysAgoDate = moment
   .utc()
   .subtract(2, "days")

@@ -49,9 +49,9 @@ export const handler = async (event) => {
       alreadyProcessedDatabases.length
     );
 
-    // Process unprocessed databases in batches of 50
+    // Process unprocessed databases in batches of 52
     const processedDatabaseIds = await processUnprocessedDatabases(
-      unprocessedDatabases.slice(0, 50)
+      unprocessedDatabases.slice(0, 52)
     );
 
     // Update the tracking table
