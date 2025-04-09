@@ -12,7 +12,7 @@ export const handler = async (event) => {
 
     // 2. Create the 'users' table.
     const createUsersTableQuery = `
-      CREATE TABLE IF NOT EXISTS "${schemaName}".users (
+      CREATE TABLE "${schemaName}".users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(50),
         role VARCHAR(50)
@@ -22,7 +22,7 @@ export const handler = async (event) => {
 
     // 3. Create the 'posts' table with a foreign key reference to users.
     const createPostsTableQuery = `
-      CREATE TABLE IF NOT EXISTS "${schemaName}".posts (
+      CREATE TABLE "${schemaName}".posts (
         id SERIAL PRIMARY KEY,
         title VARCHAR(50),
         body TEXT,

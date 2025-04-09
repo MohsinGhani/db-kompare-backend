@@ -22,12 +22,12 @@ export const handler = async (event) => {
       databaseType: databaseType || "postgres",
       dbStructure:
         dbStructure ||
-        `CREATE TABLE IF NOT EXISTS users (
+        `CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   username VARCHAR(50),
   role VARCHAR(50)
 );
-CREATE TABLE IF NOT EXISTS posts (
+CREATE TABLE posts (
   id SERIAL PRIMARY KEY,
   title VARCHAR(50),
   body TEXT,
