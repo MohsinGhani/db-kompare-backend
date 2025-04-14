@@ -24,7 +24,8 @@ export async function executeReadOnlyQuery(query, params = []) {
     const startTime = Date.now();
     const result = await client.query(query, params);
     const executionTime = Date.now() - startTime;
-    return { rows: result.rows, executionTime };
+    const columns = result.fields?.map((field) => field.name) || [];
+    return { columns, rows: result.rows, executionTime };
   } catch (err) {
     throw err;
   } finally {
@@ -39,7 +40,8 @@ export async function executeCommonQuery(query, params = []) {
     const startTime = Date.now();
     const result = await client.query(query, params);
     const executionTime = Date.now() - startTime;
-    return { rows: result.rows, executionTime };
+    const columns = result.fields?.map((field) => field.name) || [];
+    return { columns, rows: result.rows, executionTime };
   } catch (err) {
     throw err;
   } finally {
@@ -53,11 +55,15 @@ export async function executeUserQuery(userId, query, params = []) {
     await client.query("BEGIN");
     // Set the search_path to the user-specific schema, e.g., user_123
     await client.query(`SET LOCAL search_path TO "user_${userId}"`);
+
     const startTime = Date.now();
     const result = await client.query(query, params);
     const executionTime = Date.now() - startTime;
     await client.query("COMMIT");
-    return { rows: result.rows, executionTime };
+
+    // Extract column names
+    const columns = result.fields?.map((field) => field.name) || [];
+    return { columns, rows: result.rows, executionTime };
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;

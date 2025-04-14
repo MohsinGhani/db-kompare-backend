@@ -28,6 +28,7 @@ export const handler = async (event) => {
     const resultObj = {
       data: result.rows,
       executionTime: result.executionTime,
+      columns: result.columns,
     };
     // Return the result and the execution time.
     return sendResponse(200, "Query executed successfully", resultObj);

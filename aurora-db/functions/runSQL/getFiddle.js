@@ -41,15 +41,28 @@ export const handler = async (event) => {
       const userId = fiddle.ownerId;
       const tableDataEntries = await Promise.all(
         fiddle.tables.map(async (tableName) => {
-          // Construct a query for the table.
-          // Adjust the schema if needed (e.g., use "public" or your specific schema)
+          // Construct a query to fetch all rows from the table.
           const query = `SELECT * FROM "${tableName}";`;
           const queryResult = await executeUserQuery(userId, query);
-          // Assume queryResult.rows holds the rows returned by Postgres.
-          return [tableName, queryResult.rows];
+
+          // Destructure the column names and rows from the query result.
+          const { columns, rows } = queryResult;
+
+          // Create a header object where each key and value is the column name.
+          const headerRow = columns.reduce((header, col) => {
+            header[col] = col;
+            return header;
+          }, {});
+
+          // Prepend the headerRow to the array of rows.
+          const tableData = [headerRow, ...rows];
+
+          // Return an entry mapping the table name to its tableData.
+          return [tableName, tableData];
         })
       );
-      // Set dataSample as an object mapping each table name to its fetched rows.
+
+      // Construct an object mapping each table name to its data sample.
       fiddle.dataSample = Object.fromEntries(tableDataEntries);
     }
 
