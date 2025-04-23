@@ -1,52 +1,24 @@
 org: dbkompare
 app: db-kompare
 service: python-serverless
-configValidationMode: error
 
 provider:
   name: aws
-  runtime: python3.12
   region: eu-west-1
   stage: ${opt:stage, 'dev'}
   profile: dbkompare
+  # === use container images ===
+  ecr:
+    images:
+      pythonServerlessImage:
+        path: ./lambda-docker # Docker build context
+        file: Dockerfile # optional, defaults to "Dockerfile"
 
 functions:
   hello:
-    handler: handler.hello
+    image:
+      name: pythonServerlessImage # must match the key above
     events:
       - httpApi:
           path: /
           method: get
-
-plugins:
-  - serverless-python-requirements
-
-package:
-  exclude:
-    - "**/*"
-  include:
-    - "*.py"
-    - skimpy
-
-custom:
-  pythonRequirements:
-    dockerizePip: true
-    slim: true
-    strip: true
-
-    # noDeploy:
-    #   - scipy
-    #   - seaborn
-    #   - statsmodels
-    #   - ImageHash
-    #   - wordcloud
-    #   - matplotlib
-    #   - networkx
-    #   - visions
-    #   - PyYAML
-    #   - requests
-    #   - urllib3
-    #   - joblib
-    #   - htmlmin
-    #   - missingno
-    #   - phik
