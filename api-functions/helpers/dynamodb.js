@@ -1,5 +1,6 @@
 import DynamoDB from "aws-sdk/clients/dynamodb.js";
 import { getTableName } from "./helpers.js";
+
 const DynamoDBClient = new DynamoDB.DocumentClient();
 
 export const createItemInDynamoDB = (
