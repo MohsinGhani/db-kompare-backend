@@ -24,6 +24,7 @@ custom:
   databaseAggregationTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DATABASE_AGGREGATED_TABLE}
   dbToolsAggregationTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_AGGREGATED_TABLE}
   submissionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SUBMISSIONS_TABLE}
+  profilingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.PROFILING_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -71,6 +72,7 @@ provider:
     DATABASE_AGGREGATED_TABLE: db-kompare-database-aggregated-${self:provider.stage}
     DB_TOOLS_AGGREGATED_TABLE: db-kompare-dbtools-aggregated-${self:provider.stage}
     SUBMISSIONS_TABLE: db-kompare-submissions-${self:provider.stage}
+    PROFILING_TABLE: db-kompare-profiling-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -82,6 +84,8 @@ provider:
     GITHUB_CLIENT_SECRET: ${env:GITHUB_CLIENT_SECRET}
     ADMIN_EMAIL: ${env:ADMIN_EMAIL}
     SOURCE_EMAIL: ${env:SOURCE_EMAIL}
+    JOB_QUEUE: ${env:JOB_QUEUE}
+    JOB_DEFINITION: ${env:JOB_DEFINITION}
 
     # LINKEDIN_CLIENT_ID: ${env:LINKEDIN_CLIENT_ID}
     # LINKEDIN_CLIENT_SECRET: ${env:LINKEDIN_CLIENT_SECRET}
@@ -106,6 +110,8 @@ provider:
           Resource:
             - ${self:custom.databasesTableArn}/index/byStatus
             - ${self:custom.questionsTableArn}/index/byStatus
+            - ${self:custom.profilingTableArn}
+            - ${self:custom.profilingTableArn}/index/*
             - ${self:custom.questionsTableArn}
             - ${self:custom.databaseAggregationTableArn}
             - ${self:custom.dbToolsAggregationTableArn}
@@ -151,6 +157,25 @@ provider:
             - arn:aws:ses:${self:provider.region}:${aws:accountId}:identity/${self:provider.environment.SOURCE_EMAIL}
             - arn:aws:ses:${self:provider.region}:${aws:accountId}:identity/${self:provider.environment.ADMIN_EMAIL}
 functions:
+  makeProfiling:
+    handler: functions/profiling/makeProfiling.handler
+    events:
+      - s3:
+          bucket: db-kompare-${self:provider.stage}
+          event: s3:ObjectCreated:*
+          existing: true
+          rules:
+            - prefix: INPUT/
+
+  getProfiling:
+    handler: functions/profiling/getProfiling.handler
+    events:
+      - http:
+          path: /profiling
+          method: get
+          private: true
+          cors: true
+
   postConfirmation:
     handler: functions/auth/postConfirmation.handler
     environment:

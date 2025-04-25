@@ -1,53 +1,123 @@
-import boto3
-import csv
+import os
+import uuid
 import sys
-from io import StringIO
+import json
+import time
+import boto3
+import pandas as pd
+from ydata_profiling import ProfileReport
 
-def main(bucket, key):
-  s3_client = boto3.client('s3',region_name='eu-west-1')
-  dynamodb_client = boto3.resource('dynamodb',region_name='eu-west-1')
+# AWS clients
+s3 = boto3.client('s3')
+dynamodb = boto3.resource('dynamodb')
 
-  # Read the CSV file from S3
-  file_obj = s3_client.get_object(Bucket=bucket, Key=key)
-  csv_content = file_obj['Body'].read().decode('utf-8')
+# Configuration via environment variables
+TABLE_NAME    = os.environ.get('DDB_TABLE', 'db-kompare-profiling-dev')
+INPUT_PREFIX  = os.environ.get('INPUT_PREFIX', 'INPUT/')
+OUTPUT_PREFIX = os.environ.get('OUTPUT_PREFIX', 'REPORTS/')
 
-  # Define the DynamoDB table
-  table = dynamodb_client.Table('batch-test')
 
-  # Read the CSV content
-  csv_reader = csv.DictReader(StringIO(csv_content))
+def handler(event, context):
+    """
+    Lambda handler triggered by S3 ObjectCreated events under '{INPUT_PREFIX}'.
+    For each uploaded JSON file, creates a DynamoDB item (status=PENDING),
+    runs ydata-profiling on the JSON array, uploads HTML report to S3,
+    and updates status to SUCCESS or FAILED.
+    """
+    table = dynamodb.Table(TABLE_NAME)
 
-  # Iterate through the CSV and write to DynamoDB
-  for row in csv_reader:
-    Id = int(row['Id'])
-    SEPAL_LENGTH = row['SEPAL_LENGTH']
-    SEPAL_WIDTH = (row['SEPAL_WIDTH'])
-    PETAL_LENGTH = row['PETAL_LENGTH']
-    PETAL_WIDTH = row['PETAL_WIDTH']
-    CLASS_NAME = row['CLASS_NAME']
+    for record in event.get('Records', []):
+        bucket = record['s3']['bucket']['name']
+        key    = record['s3']['object']['key']
 
-    # Write to DynamoDB
-    table.put_item(
-    Item={
-    'Id':Id,
-    'SEPAL_LENGTH': SEPAL_LENGTH,
-    'SEPAL_WIDTH': SEPAL_WIDTH,
-    'PETAL_LENGTH': PETAL_LENGTH,
-    'PETAL_WIDTH': PETAL_WIDTH,
-    'CLASS_NAME':CLASS_NAME
+        # Only process keys under INPUT_PREFIX
+        if not key.startswith(INPUT_PREFIX):
+            print(f"Skipping non-input key: {key}")
+            continue
+
+        # Parse userId, fiddleId, and input filename
+        parts = key.split('/')
+        # Expect: INPUT/{userId}/{fiddleId}/{filename}.json
+        if len(parts) < 4:
+            print(f"Invalid key format, expected at least 4 segments: {key}")
+            continue
+
+        _, user_id, fiddle_id, filename = parts
+        base_name = filename.rsplit('.', 1)[0]
+
+        # Unique profile record
+        profile_id = str(uuid.uuid4())
+        now_ms = int(time.time() * 1000)
+
+        # Compute output report key
+        output_key = f"{OUTPUT_PREFIX}{user_id}/{fiddle_id}/{base_name}-{now_ms}.html"
+
+        # Insert initial DynamoDB record with status PENDING
+        table.put_item(Item={
+            'id':           profile_id,
+            'userId':       user_id,
+            'fiddleId':     fiddle_id,
+            'inputS3Key':   key,
+            'outputS3Key':  output_key,
+            'status':       'PENDING',
+            'createdAt':    now_ms
+        })
+
+        try:
+            # Fetch JSON file from S3
+            obj = s3.get_object(Bucket=bucket, Key=key)
+            body = obj['Body'].read().decode('utf-8')
+            data = json.loads(body)
+
+            # Load into DataFrame
+            df = pd.DataFrame(data)
+
+            # Generate profile report (explorative mode)
+            profile = ProfileReport(df, title='Profiling Report', explorative=True)
+            html_bytes = profile.to_html().encode('utf-8')
+
+            # Upload HTML report to S3
+            s3.put_object(
+                Bucket=bucket,
+                Key=output_key,
+                Body=html_bytes,
+                ContentType='text/html'
+            )
+
+            # Update DynamoDB to SUCCESS
+            completed_ms = int(time.time() * 1000)
+            table.update_item(
+                Key={'id': profile_id},
+                UpdateExpression='SET #s = :status, completedAt = :c',
+                ExpressionAttributeNames={'#s': 'status'},
+                ExpressionAttributeValues={':status': 'SUCCESS', ':c': completed_ms}
+            )
+
+        except Exception as e:
+            # On error, update status to FAILED with error message
+            error_ms = int(time.time() * 1000)
+            table.update_item(
+                Key={'id': profile_id},
+                UpdateExpression='SET #s = :status, errorMessage = :err, completedAt = :c',
+                ExpressionAttributeNames={'#s': 'status'},
+                ExpressionAttributeValues={
+                    ':status': 'FAILED',
+                    ':err':    str(e),
+                    ':c':      error_ms
+                }
+            )
+            print(f"Profiling failed for {key}: {e}")
+            # Optionally re-raise to signal failure
+            raise
+
+    return {
+        'statusCode': 200,
+        'body':       json.dumps({'message': 'Processing complete.'})
     }
-    )
-
-  print('CSV processed successfully!')
 
 if __name__ == "__main__":
-    # Extract command-line arguments
-    if len(sys.argv) != 3:
-        print("Usage: python script.py <S3_BUCKET_NAME> <S3_KEY>")
-        sys.exit(1)
-
-    s3_bucket = sys.argv[1]
-    s3_key = sys.argv[2]
-
-    # Execute the main function with provided arguments
-    main(s3_bucket, s3_key)
+    bucket = sys.argv[1]
+    key    = sys.argv[2]
+    # Build a minimal S3 event for your handler:
+    event = {"Records":[{"s3":{"bucket":{"name":bucket},"object":{"key":key}}}]}
+    handler(event, None)

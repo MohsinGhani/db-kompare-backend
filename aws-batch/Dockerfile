@@ -1,14 +1,18 @@
-# Use an official Python runtime as a parent image
+# Use a minimal Python image
 FROM python:3.8-slim
 
-# Set the working directory to /app
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
-
-# Install any needed packages specified in requirements.txt
+# Copy requirements and install
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Run script.py when the container launches
-CMD ["echo", "hello"]
+# Copy your script and any other code
+COPY script.py ./
+
+# ENTRYPOINT runs your script automatically:
+#   python script.py <bucket> <full-s3-key>
+ENTRYPOINT ["python", "script.py"]
+
+# No default CMD: AWS Batch will append the two args
+CMD []

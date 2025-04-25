@@ -1,1 +1,3 @@
 boto3
+pandas
+ydata_profiling

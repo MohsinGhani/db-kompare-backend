@@ -335,6 +335,36 @@ resources:
             Projection:
               ProjectionType: ALL
 
+    Profiling:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-profiling-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: fiddleId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: byUser
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byFiddle
+            KeySchema:
+              - AttributeName: fiddleId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
     # Database Metrices Table
     Metrices:
       Type: AWS::DynamoDB::Table
