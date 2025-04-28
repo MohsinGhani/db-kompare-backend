@@ -12,8 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/client-s3": "^3.797.0",
     "@aws-sdk/lib-dynamodb": "^3.758.0",
-    "@prisma/client": "^6.3.1",
     "dotenv": "^16.4.7",
     "lodash": "^4.17.21",
     "pg": "^8.14.0",
@@ -22,7 +22,6 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "prisma": "^6.3.1",
     "serverless-offline": "^14.4.0",
     "serverless-prune-plugin": "^2.1.0"
   }

@@ -21,6 +21,9 @@ provider:
         - dynamodb:DeleteItem
         - dynamodb:Query
         - dynamodb:Scan
+        - s3:ListBucket
+        - s3:GetObject
+        - s3:PutObject
       Resource:
         - Fn::Sub: "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db-cluster:${AuroraCluster}"
         - "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/db-kompare-questions-dev"
@@ -34,7 +37,8 @@ provider:
     PG_DATABASE: "mydatabase"
     PG_PORT: "5432"
     PG_PASSWORD: ${env:DB_PASSWORD}
-
+    BUCKET_URL: ${env:BUCKET_URL}
+    BUCKET_NAME: ${env:BUCKET_NAME}
   apiGateway:
     apiKeys:
       - name: aurora-key

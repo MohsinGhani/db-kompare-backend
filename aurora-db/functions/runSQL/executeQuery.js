@@ -1,26 +1,86 @@
 import { executeUserQuery } from "../../db/index.js";
-import { sendResponse } from "../../helpers/helpers.js";
+import {
+  csvToPgsql,
+  jsonToPgsql,
+  pipeToPgsql,
+  sendResponse,
+} from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
-    const { userId, query } = JSON.parse(event.body || "{}");
+    const {
+      userId,
+      query: rawQuery,
+      fileType,
+      url_KEY,
+      tableName,
+      fileExtension,
+    } = JSON.parse(event.body || "{}");
 
-    if (!userId || !query) {
-      return sendResponse(400, "Missing userId or query", null);
+    // Must always have a user
+    if (!userId) {
+      return sendResponse(400, "Missing userId", null);
     }
-    const result = await executeUserQuery(userId, query);
 
-    const resultObj = {
+    let sqlToRun;
+
+    // 1️⃣ If the client sent a SQL query, use it
+    if (rawQuery && rawQuery.trim() !== "") {
+      sqlToRun = rawQuery.trim();
+
+      // 2️⃣ Otherwise, if they provided an S3 URL payload, convert it
+    } else if (url_KEY && fileType && tableName) {
+      const url = `${url_KEY}`;
+
+      // Conversion functions are async, so await their result
+      let conversionResult;
+      switch (fileType) {
+        case "csv":
+          conversionResult = await csvToPgsql(url, tableName);
+          break;
+        case "json":
+          conversionResult = await jsonToPgsql(url, tableName);
+          break;
+        case "pipe":
+          conversionResult = await pipeToPgsql(url, tableName);
+          break;
+        default:
+          return sendResponse(400, "Invalid fileType", null);
+      }
+
+      sqlToRun = conversionResult.output?.trim();
+      if (!sqlToRun) {
+        return sendResponse(
+          400,
+          "Failed to generate SQL from provided file parameters",
+          null
+        );
+      }
+
+      // 3️⃣ Neither a query nor file info was supplied
+    } else {
+      return sendResponse(
+        400,
+        "Missing either raw SQL (`query`) or file parameters (`url_KEY`, `fileType`, `tableName`)",
+        null
+      );
+    }
+
+    // Execute the selected SQL
+    const result = await executeUserQuery(userId, sqlToRun);
+
+    const payload = {
       data: result.rows,
       executionTime: result.executionTime,
       columns: result.columns,
     };
-    // Return the result and the execution time.
-    return sendResponse(200, "Query executed successfully", resultObj);
+    return sendResponse(200, "Query executed successfully", payload);
   } catch (error) {
-    console.error("Error executing query:", error);
-    const match = error.message.match(/Message:\s*`([^`]+)`/);
-    const partialMessage = match ? match[1] : error.message;
-    return sendResponse(500, { error: partialMessage }, null);
+    console.error("Error executing handler:", error);
+    return sendResponse(
+      500,
+      { error: error.message || "Internal server error" },
+      null
+    );
   }
 };
