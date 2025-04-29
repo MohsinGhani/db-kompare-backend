@@ -40,25 +40,24 @@ export const handler = async (event) => {
     if (fiddle.tables && Array.isArray(fiddle.tables)) {
       const userId = fiddle.ownerId;
       const tableDataEntries = await Promise.all(
-        fiddle.tables.map(async (tableName) => {
-          // Construct a query to fetch all rows from the table.
-          const query = `SELECT * FROM "${tableName}";`;
-          const queryResult = await executeUserQuery(userId, query);
+        fiddle.tables.map(async (table) => {
+          // a) Normalize to a string table name
+          const tableName = table?.name;
 
-          // Destructure the column names and rows from the query result.
-          const { columns, rows } = queryResult;
+          // b) Construct a valid SQL: quote the identifier, then apply LIMIT
+          const sql = `SELECT * FROM "${tableName}" LIMIT 500;`;
 
-          // Create a header object where each key and value is the column name.
-          const headerRow = columns.reduce((header, col) => {
-            header[col] = col;
-            return header;
+          // c) Execute and unpack
+          const { columns, rows } = await executeUserQuery(userId, sql);
+
+          // d) Build a header row object { col1: col1, col2: col2, … }
+          const header = columns.reduce((h, col) => {
+            h[col] = col;
+            return h;
           }, {});
 
-          // Prepend the headerRow to the array of rows.
-          const tableData = [headerRow, ...rows];
-
-          // Return an entry mapping the table name to its tableData.
-          return [tableName, tableData];
+          // e) Combine header + data rows
+          return [tableName, [header, ...rows]];
         })
       );
 

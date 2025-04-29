@@ -1,10 +1,11 @@
 import os
-import uuid
 import sys
+import uuid
 import json
 import time
 import boto3
 import pandas as pd
+import io
 from ydata_profiling import ProfileReport
 
 # AWS clients
@@ -20,8 +21,8 @@ OUTPUT_PREFIX = os.environ.get('OUTPUT_PREFIX', 'REPORTS/')
 def handler(event, context):
     """
     Lambda handler triggered by S3 ObjectCreated events under '{INPUT_PREFIX}'.
-    For each uploaded JSON file, creates a DynamoDB item (status=PENDING),
-    runs ydata-profiling on the JSON array, uploads HTML report to S3,
+    For each uploaded JSON or CSV file, creates a DynamoDB item (status=PENDING),
+    runs ydata-profiling on the data, uploads HTML report to S3,
     and updates status to SUCCESS or FAILED.
     """
     table = dynamodb.Table(TABLE_NAME)
@@ -37,7 +38,7 @@ def handler(event, context):
 
         # Parse userId, fiddleId, and input filename
         parts = key.split('/')
-        # Expect: INPUT/{userId}/{fiddleId}/{filename}.json
+        # Expect: INPUT/{userId}/{fiddleId}/{filename}.ext
         if len(parts) < 4:
             print(f"Invalid key format, expected at least 4 segments: {key}")
             continue
@@ -64,13 +65,20 @@ def handler(event, context):
         })
 
         try:
-            # Fetch JSON file from S3
+            # Fetch object from S3
             obj = s3.get_object(Bucket=bucket, Key=key)
-            body = obj['Body'].read().decode('utf-8')
-            data = json.loads(body)
+            raw_bytes = obj['Body'].read()
 
-            # Load into DataFrame
-            df = pd.DataFrame(data)
+            # Determine file type by extension
+            if key.lower().endswith('.csv'):
+                df = pd.read_csv(io.BytesIO(raw_bytes))
+            elif key.lower().endswith('.psv'):
+                df = pd.read_csv(io.BytesIO(raw_bytes), sep='|')
+            else:
+                # Expect JSON array
+                body_str = raw_bytes.decode('utf-8')
+                data = json.loads(body_str)
+                df = pd.DataFrame(data)
 
             # Generate profile report (explorative mode)
             profile = ProfileReport(df, title='Profiling Report', explorative=True)
@@ -107,7 +115,6 @@ def handler(event, context):
                 }
             )
             print(f"Profiling failed for {key}: {e}")
-            # Optionally re-raise to signal failure
             raise
 
     return {
@@ -115,9 +122,10 @@ def handler(event, context):
         'body':       json.dumps({'message': 'Processing complete.'})
     }
 
+
 if __name__ == "__main__":
+    # For local testing: python this_file.py <bucket> <key>
     bucket = sys.argv[1]
     key    = sys.argv[2]
-    # Build a minimal S3 event for your handler:
-    event = {"Records":[{"s3":{"bucket":{"name":bucket},"object":{"key":key}}}]}
+    event = {"Records":[{"s3":{"bucket":{"name":bucket},"object":{"key":key}}}]}  
     handler(event, None)

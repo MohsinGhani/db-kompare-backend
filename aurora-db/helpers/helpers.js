@@ -40,7 +40,6 @@ export const getTimestamp = () => {
 export const formatDateLocal = (value) => {
   const date = new Date(value);
   const year = date.getFullYear();
-  // getMonth() returns 0-indexed months, so add 1 and pad if needed
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   const day = date.getDate().toString().padStart(2, "0");
   return `${year}-${month}-${day}`;
@@ -50,24 +49,20 @@ export const formatDateLocal = (value) => {
 // LOAD INPUT FROM S3 KEY OR RAW DATA
 // ==============================
 async function loadInput(input, asJson = false) {
-  // Treat `input` as an S3 key under TEMP/ when BUCKET_NAME is set
   if (typeof input === "string" && process.env.BUCKET_NAME) {
     const Bucket = process.env.BUCKET_NAME;
-    const Key = `TEMP/${input}`;
+    const Key = `${input}`;
     const command = new GetObjectCommand({ Bucket, Key });
     const { Body } = await s3Client.send(command);
 
-    // Body is a Node.js Readable stream; collect chunks
     const chunks = [];
     for await (const chunk of Body) {
-      // chunk can be Buffer or Uint8Array
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     const text = Buffer.concat(chunks).toString("utf-8");
     return asJson ? JSON.parse(text) : text;
   }
 
-  // Fallback: treat input as raw data (string or JSON object)
   return input;
 }
 
@@ -215,17 +210,18 @@ function buildPgSql(tableName, records) {
 }
 
 // ==============================
-// JSON to PGSQL Conversion
+// JSON to PGSQL Conversion (limited to 10000 records)
 // ==============================
 export async function jsonToPgsql(input, tableName = "my_table") {
   const jsonData = await loadInput(input, true);
   const raw = Array.isArray(jsonData) ? jsonData : [jsonData];
-  const records = raw.map((o) => flattenRecord(o));
+  const limited = raw.slice(0, 10000);
+  const records = limited.map((o) => flattenRecord(o));
   return buildPgSql(tableName, records);
 }
 
 // ==============================
-// DELIMITED to PGSQL Conversion
+// DELIMITED to PGSQL Conversion (limited to 10000 records)
 // ==============================
 export async function delimitedToPgsql(
   input,
@@ -249,8 +245,8 @@ export async function delimitedToPgsql(
     });
     return rec;
   });
-
-  return buildPgSql(tableName, records);
+  const limitedRecords = records.slice(0, 10000);
+  return buildPgSql(tableName, limitedRecords);
 }
 
 // Convenience wrappers

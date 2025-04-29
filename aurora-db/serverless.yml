@@ -162,12 +162,15 @@ functions:
           cors: true
   executeQuery:
     handler: functions/runSQL/executeQuery.handler
+    timeout: 300
+    memorySize: 1024
     events:
       - http:
           path: /execute-query
           method: POST
           private: true
           cors: true
+
   createUserSchema:
     handler: functions/schemas/createUserSchema.handler
     events:

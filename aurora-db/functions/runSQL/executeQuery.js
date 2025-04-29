@@ -30,7 +30,7 @@ export const handler = async (event) => {
 
       // 2️⃣ Otherwise, if they provided an S3 URL payload, convert it
     } else if (url_KEY && fileType && tableName) {
-      const url = `${url_KEY}`;
+      const url = `TEMP/${url_KEY}.${fileExtension}`;
 
       // Conversion functions are async, so await their result
       let conversionResult;
@@ -66,8 +66,14 @@ export const handler = async (event) => {
       );
     }
 
+    console.log("SQL to run:", sqlToRun);
+
+    // 4️⃣ Check if the SQL is empty or too long
+
     // Execute the selected SQL
     const result = await executeUserQuery(userId, sqlToRun);
+
+    console.log("SQL execution result:", result);
 
     const payload = {
       data: result.rows,
