@@ -1,7 +1,15 @@
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import csvParser from "csv-parser";
+import ParserModule from "stream-json/Parser.js";
+import StreamArrayModule from "stream-json/streamers/StreamArray.js";
+import { PassThrough } from "stream";
+const { parser: jsonParser } = ParserModule;
+const { streamArray } = StreamArrayModule;
+
+import { createInterface } from "readline";
 
 // Initialize a lightweight S3 client
-const s3Client = new S3Client({});
+const s3Client = new S3Client({region:"eu-west-1"});
 
 export const sendResponse = (statusCode, message, data) => {
   return {
@@ -45,29 +53,26 @@ export const formatDateLocal = (value) => {
   return `${year}-${month}-${day}`;
 };
 
-// ==============================
-// LOAD INPUT FROM S3 KEY OR RAW DATA
-// ==============================
-async function loadInput(input, asJson = false) {
-  if (typeof input === "string" && process.env.BUCKET_NAME) {
-    const Bucket = process.env.BUCKET_NAME;
-    const Key = `${input}`;
-    const command = new GetObjectCommand({ Bucket, Key });
-    const { Body } = await s3Client.send(command);
 
-    const chunks = [];
-    for await (const chunk of Body) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    const text = Buffer.concat(chunks).toString("utf-8");
-    return asJson ? JSON.parse(text) : text;
+
+// ==============================
+// LOAD INPUT AS STREAM FROM S3
+// ==============================
+async function loadInputStream(key) {
+  if (typeof key !== "string" || !process.env.BUCKET_NAME) {
+    throw new Error("A valid S3 key string and BUCKET_NAME are required");
   }
-
-  return input;
+  const command = new GetObjectCommand({
+    Bucket: process.env.BUCKET_NAME,
+    Key: key
+  });
+  const { Body } = await s3Client.send(command);
+  // Body is a Node.js Readable stream
+  return Body;
 }
 
 // ==============================
-// CONVERT TABLE NAME TO SNAKE CASE
+// SANITIZE IDENTIFIERS
 // ==============================
 export const sanitizeIdentifier = (identifier) => {
   let sanitized = identifier.toLowerCase();
@@ -80,7 +85,7 @@ export const sanitizeIdentifier = (identifier) => {
 };
 
 // ==============================
-// PARSE DELIMITED LINE (CSV/PSV)
+// PARSE DELIMITED LINE
 // ==============================
 function parseDelimitedLine(line, delimiter) {
   const result = [];
@@ -108,7 +113,7 @@ function parseDelimitedLine(line, delimiter) {
 }
 
 // ==============================
-// FLATTEN RECORD (for JSON)
+// FLATTEN JSON RECORD
 // ==============================
 function flattenRecord(obj, prefix = "") {
   const result = {};
@@ -173,8 +178,7 @@ function buildPgSql(tableName, records) {
     } else if (detected === "number") {
       columnTypes[col] = allInt ? "INTEGER" : "NUMERIC";
     } else if (detected === "string") {
-      columnTypes[col] =
-        maxLen > 0 ? `VARCHAR(${Math.max(maxLen, 100)})` : "TEXT";
+      columnTypes[col] = maxLen > 0 ? `VARCHAR(${Math.max(maxLen, 100)})` : "TEXT";
     } else {
       columnTypes[col] = "TEXT";
     }
@@ -197,9 +201,7 @@ function buildPgSql(tableName, records) {
         return `'${s.replace(/'/g, "''")}'`;
       })
       .join(", ");
-    insertStatements += `INSERT INTO ${tbl} (${columns.join(
-      ", "
-    )}) VALUES (${vals});\n`;
+    insertStatements += `INSERT INTO ${tbl} (${columns.join(", ")}) VALUES (${vals});\n`;
   });
 
   return {
@@ -210,45 +212,118 @@ function buildPgSql(tableName, records) {
 }
 
 // ==============================
-// JSON to PGSQL Conversion (limited to 10000 records)
+// JSON to PGSQL (streaming first 10000; auto-detect array vs NDJSON)
 // ==============================
-export async function jsonToPgsql(input, tableName = "my_table") {
-  const jsonData = await loadInput(input, true);
-  const raw = Array.isArray(jsonData) ? jsonData : [jsonData];
-  const limited = raw.slice(0, 10000);
-  const records = limited.map((o) => flattenRecord(o));
-  return buildPgSql(tableName, records);
+export async function jsonToPgsql(inputKey, tableName = "my_table") {
+  // 1) get raw S3 stream and wrap in PassThrough
+  const raw = await loadInputStream(inputKey);
+  const stream = new PassThrough();
+  raw.pipe(stream);
+
+  // 2) if the S3‐level stream errors, forward it
+  stream.on("error", (err) => {
+    stream.destroy();
+    throw err;
+  });
+
+  // 3) peek first non-whitespace char
+  const peeked = [];
+  let firstChar;
+  for await (const chunk of stream) {
+    peeked.push(chunk);
+    const str = Buffer.concat(peeked).toString("utf8");
+    const m = str.match(/\S/);
+    if (m) {
+      firstChar = m[0];
+      stream.unshift(Buffer.concat(peeked));
+      break;
+    }
+  }
+  if (!firstChar) throw new Error("Empty JSON input");
+
+  // helper to finish
+  const finish = (records, resolve) => resolve(buildPgSql(tableName, records));
+
+  // 4) JSON-array branch
+  if (firstChar === "[") {
+    return new Promise((resolve, reject) => {
+      const records = [];
+      const pipeline = stream.pipe(jsonParser()).pipe(streamArray());
+
+      pipeline.on("data", ({ value }) => {
+        if (records.length < 10000) records.push(flattenRecord(value));
+      });
+      pipeline.on("end",  () => finish(records, resolve));
+      pipeline.on("error", err => {
+        if (err.message.includes("premature close")) finish(records, resolve);
+        else reject(err);
+      });
+    });
+  }
+
+  // 5) NDJSON branch
+  return new Promise((resolve, reject) => {
+    const records = [];
+    const rl = createInterface({ input: stream });
+
+    rl.on("line", (line) => {
+      if (!line.trim() || records.length >= 10000) return;
+      try {
+        records.push(flattenRecord(JSON.parse(line)));
+      } catch {
+        // skip bad JSON
+      }
+    });
+
+    rl.on("close", () => {
+      // drain the rest so the socket closes cleanly
+      stream.resume();
+      finish(records, resolve);
+    });
+    rl.on("error", reject);
+  });
 }
 
+
+
+
 // ==============================
-// DELIMITED to PGSQL Conversion (limited to 10000 records)
+// DELIMITED to PGSQL (streaming first 10000)
 // ==============================
 export async function delimitedToPgsql(
-  input,
+  inputKey,
   tableName = "my_table",
   delimiter = ","
 ) {
-  const rawData = await loadInput(input, false);
-  const lines = String(rawData)
-    .split("\n")
-    .filter((l) => l.trim() !== "");
-  if (!lines.length) return { output: "" };
+  const stream = await loadInputStream(inputKey);
+  return new Promise((resolve, reject) => {
+    const records = [];
+    let headers;
+    let lineNumber = 0;
+    const rl = createInterface({ input: stream });
 
-  const headers = parseDelimitedLine(lines.shift(), delimiter).map(
-    sanitizeIdentifier
-  );
-  const records = lines.map((line) => {
-    const fields = parseDelimitedLine(line, delimiter);
-    const rec = {};
-    headers.forEach((h, i) => {
-      rec[h] = fields[i] !== undefined ? fields[i].trim() : null;
+    rl.on("line", (line) => {
+      if (!line.trim()) return;
+      if (lineNumber === 0) {
+        headers = parseDelimitedLine(line, delimiter).map(sanitizeIdentifier);
+      } else if (records.length < 10000) {
+        const fields = parseDelimitedLine(line, delimiter);
+        const rec = {};
+        headers.forEach((h, i) => {
+          rec[h] = fields[i] !== undefined ? fields[i].trim() : null;
+        });
+        records.push(rec);
+        if (records.length >= 10000) rl.close();
+      }
+      lineNumber++;
     });
-    return rec;
+
+    rl.on("close", () => resolve(buildPgSql(tableName, records)));
+    rl.on("error", reject);
   });
-  const limitedRecords = records.slice(0, 10000);
-  return buildPgSql(tableName, limitedRecords);
 }
 
 // Convenience wrappers
-export const csvToPgsql = (input, tbl) => delimitedToPgsql(input, tbl, ",");
-export const pipeToPgsql = (input, tbl) => delimitedToPgsql(input, tbl, "|");
+export const csvToPgsql = (key, tbl) => delimitedToPgsql(key, tbl, ",");
+export const pipeToPgsql = (key, tbl) => delimitedToPgsql(key, tbl, "|");
+

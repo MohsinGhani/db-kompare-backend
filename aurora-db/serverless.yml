@@ -163,7 +163,7 @@ functions:
   executeQuery:
     handler: functions/runSQL/executeQuery.handler
     timeout: 300
-    memorySize: 1024
+    memorySize: 3008
     events:
       - http:
           path: /execute-query
