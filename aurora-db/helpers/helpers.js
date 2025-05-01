@@ -1,15 +1,23 @@
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import csvParser from "csv-parser";
 import ParserModule from "stream-json/Parser.js";
+import JSONLParserModule from "stream-json/jsonl/Parser.js";
 import StreamArrayModule from "stream-json/streamers/StreamArray.js";
+import StreamObjectModule from "stream-json/streamers/StreamObject.js";
+import StreamValuesModule from "stream-json/streamers/StreamValues.js";
+import { pipeline } from "stream/promises";
 import { PassThrough } from "stream";
+
 const { parser: jsonParser } = ParserModule;
+const { parser: jsonlParser } = JSONLParserModule;
 const { streamArray } = StreamArrayModule;
+const { streamObject } = StreamObjectModule;
+const { streamValues } = StreamValuesModule;
 
 import { createInterface } from "readline";
 
 // Initialize a lightweight S3 client
-const s3Client = new S3Client({region:"eu-west-1"});
+const s3Client = new S3Client({ region: "eu-west-1" });
 
 export const sendResponse = (statusCode, message, data) => {
   return {
@@ -53,8 +61,6 @@ export const formatDateLocal = (value) => {
   return `${year}-${month}-${day}`;
 };
 
-
-
 // ==============================
 // LOAD INPUT AS STREAM FROM S3
 // ==============================
@@ -64,7 +70,7 @@ async function loadInputStream(key) {
   }
   const command = new GetObjectCommand({
     Bucket: process.env.BUCKET_NAME,
-    Key: key
+    Key: key,
   });
   const { Body } = await s3Client.send(command);
   // Body is a Node.js Readable stream
@@ -116,6 +122,7 @@ function parseDelimitedLine(line, delimiter) {
 // FLATTEN JSON RECORD
 // ==============================
 function flattenRecord(obj, prefix = "") {
+  console.log("obj", obj);
   const result = {};
   for (const key in obj) {
     if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
@@ -142,21 +149,96 @@ function flattenRecord(obj, prefix = "") {
 // ==============================
 // BUILD PGSQL STATEMENTS
 // ==============================
+// function buildPgSql(tableName, records) {
+//   if (!records.length) return { output: "" };
+//   console.log("records", records);
+//   const tbl = sanitizeIdentifier(tableName).toLowerCase();
+//   const colSet = new Set();
+//   records.forEach((rec) => Object.keys(rec).forEach((k) => colSet.add(k)));
+//   const columns = Array.from(colSet);
+//   console.log("columns", columns);
+//   const columnTypes = {};
+//   columns.forEach((col) => {
+//     let detected = null;
+//     let maxLen = 0;
+//     let allInt = true;
+//     let allBool = true;
+
+//     records.forEach((rec) => {
+//       const v = rec[col];
+//       if (v == null) return;
+//       if (typeof v === "boolean") {
+//         detected = "boolean";
+//       } else if (typeof v === "number") {
+//         detected = "number";
+//         if (!Number.isInteger(v)) allInt = false;
+//       } else {
+//         detected = "string";
+//         const s = String(v);
+//         maxLen = Math.max(maxLen, s.length);
+//         if (!["true", "false"].includes(s.toLowerCase())) allBool = false;
+//       }
+//     });
+
+//     if (detected === "boolean" && allBool) {
+//       columnTypes[col] = "BOOLEAN";
+//     } else if (detected === "number") {
+//       columnTypes[col] = allInt ? "INTEGER" : "NUMERIC";
+//     } else if (detected === "string") {
+//       columnTypes[col] =
+//         maxLen > 0 ? `VARCHAR(${Math.max(maxLen, 100)})` : "TEXT";
+//     } else {
+//       columnTypes[col] = "TEXT";
+//     }
+//   });
+
+//   const createTableStatement =
+//     `CREATE TABLE ${tbl} (\n  ` +
+//     columns.map((c) => `${c} ${columnTypes[c]}`).join(",\n  ") +
+//     `\n);\n\n`;
+
+//   let insertStatements = "";
+//   records.forEach((rec) => {
+//     const vals = columns
+//       .map((col) => {
+//         const v = rec[col];
+//         if (v == null || v === "") return "NULL";
+//         if (typeof v === "boolean" || typeof v === "number") return v;
+//         const s = String(v);
+//         if (["true", "false"].includes(s.toLowerCase())) return s.toLowerCase();
+//         return `'${s.replace(/'/g, "''")}'`;
+//       })
+//       .join(", ");
+//     insertStatements += `INSERT INTO ${tbl} (${columns.join(
+//       ", "
+//     )}) VALUES (${vals});\n`;
+//   });
+
+//   return {
+//     output: createTableStatement + insertStatements,
+//     createTableStatement,
+//     insertStatements,
+//   };
+// }
 function buildPgSql(tableName, records) {
   if (!records.length) return { output: "" };
 
-  const tbl = sanitizeIdentifier(tableName).toLowerCase();
+  // sanitizeIdentifier should strip out bad chars but NOT quote.
+  // we’ll add quoting here.
+  const tbl = sanitizeIdentifier(tableName);
+
+  // collect all column names
   const colSet = new Set();
   records.forEach((rec) => Object.keys(rec).forEach((k) => colSet.add(k)));
   const columns = Array.from(colSet);
 
+  // infer types as before...
   const columnTypes = {};
   columns.forEach((col) => {
-    let detected = null;
-    let maxLen = 0;
-    let allInt = true;
-    let allBool = true;
-
+    let detected = null,
+      maxLen = 0,
+      allInt = true,
+      allBool = true;
     records.forEach((rec) => {
       const v = rec[col];
       if (v == null) return;
@@ -173,22 +255,25 @@ function buildPgSql(tableName, records) {
       }
     });
 
-    if (detected === "boolean" && allBool) {
-      columnTypes[col] = "BOOLEAN";
-    } else if (detected === "number") {
+    if (detected === "boolean" && allBool) columnTypes[col] = "BOOLEAN";
+    else if (detected === "number")
       columnTypes[col] = allInt ? "INTEGER" : "NUMERIC";
-    } else if (detected === "string") {
-      columnTypes[col] = maxLen > 0 ? `VARCHAR(${Math.max(maxLen, 100)})` : "TEXT";
-    } else {
-      columnTypes[col] = "TEXT";
-    }
+    else if (detected === "string")
+      columnTypes[col] = `VARCHAR(${Math.max(maxLen, 100)})`;
+    else columnTypes[col] = "TEXT";
   });
 
+  // Quote the table and each column name
+  const qTbl = `"${tbl}"`;
+  const qCols = columns.map((c) => `"${c}"`);
+
+  // CREATE TABLE
   const createTableStatement =
-    `CREATE TABLE ${tbl} (\n  ` +
-    columns.map((c) => `${c} ${columnTypes[c]}`).join(",\n  ") +
+    `CREATE TABLE ${qTbl} (\n  ` +
+    columns.map((c) => `"${c}" ${columnTypes[c]}`).join(",\n  ") +
     `\n);\n\n`;
 
+  // INSERTs
   let insertStatements = "";
   records.forEach((rec) => {
     const vals = columns
@@ -196,12 +281,16 @@ function buildPgSql(tableName, records) {
         const v = rec[col];
         if (v == null || v === "") return "NULL";
         if (typeof v === "boolean" || typeof v === "number") return v;
-        const s = String(v);
+        const s = String(v).replace(/'/g, "''");
+        // note: we let 'true'/'false' remain unquoted if they parse as booleans
         if (["true", "false"].includes(s.toLowerCase())) return s.toLowerCase();
-        return `'${s.replace(/'/g, "''")}'`;
+        return `'${s}'`;
       })
       .join(", ");
-    insertStatements += `INSERT INTO ${tbl} (${columns.join(", ")}) VALUES (${vals});\n`;
+
+    insertStatements += `INSERT INTO ${qTbl} (${qCols.join(
+      ", "
+    )}) VALUES (${vals});\n`;
   });
 
   return {
@@ -215,77 +304,79 @@ function buildPgSql(tableName, records) {
 // JSON to PGSQL (streaming first 10000; auto-detect array vs NDJSON)
 // ==============================
 export async function jsonToPgsql(inputKey, tableName = "my_table") {
-  // 1) get raw S3 stream and wrap in PassThrough
+  // 1) Load the raw S3 stream
   const raw = await loadInputStream(inputKey);
-  const stream = new PassThrough();
-  raw.pipe(stream);
 
-  // 2) if the S3‐level stream errors, forward it
-  stream.on("error", (err) => {
-    stream.destroy();
-    throw err;
+  // 2) Peek one chunk to sample for NDJSON vs JSON array/object
+  const peekBuf = await new Promise((resolve, reject) => {
+    raw.once("error", reject);
+    raw.once("data", (chunk) => {
+      raw.pause();
+      raw.removeListener("error", reject);
+      resolve(chunk);
+    });
   });
 
-  // 3) peek first non-whitespace char
-  const peeked = [];
-  let firstChar;
-  for await (const chunk of stream) {
-    peeked.push(chunk);
-    const str = Buffer.concat(peeked).toString("utf8");
-    const m = str.match(/\S/);
-    if (m) {
-      firstChar = m[0];
-      stream.unshift(Buffer.concat(peeked));
-      break;
-    }
-  }
+  // 3) Replay that chunk so we don't lose it
+  const replay = new PassThrough();
+  replay.write(peekBuf);
+  raw.pipe(replay);
+
+  // 4) Find the very first non-whitespace character
+  const str = peekBuf.toString("utf8");
+  const firstChar = str.match(/\S/)?.[0];
   if (!firstChar) throw new Error("Empty JSON input");
 
-  // helper to finish
-  const finish = (records, resolve) => resolve(buildPgSql(tableName, records));
-
-  // 4) JSON-array branch
+  // 5) Choose parser + unwrapper
+  let parserStream, unwrapper;
+  const ndjsonPattern = /\}\s*\n\s*\{/;
   if (firstChar === "[") {
-    return new Promise((resolve, reject) => {
-      const records = [];
-      const pipeline = stream.pipe(jsonParser()).pipe(streamArray());
-
-      pipeline.on("data", ({ value }) => {
-        if (records.length < 10000) records.push(flattenRecord(value));
-      });
-      pipeline.on("end",  () => finish(records, resolve));
-      pipeline.on("error", err => {
-        if (err.message.includes("premature close")) finish(records, resolve);
-        else reject(err);
-      });
-    });
+    parserStream = jsonParser();
+    unwrapper = streamArray();
+  } else if (firstChar === "{" && ndjsonPattern.test(str)) {
+    parserStream = jsonlParser();
+    unwrapper = streamValues();
+  } else if (firstChar === "{") {
+    parserStream = jsonParser();
+    unwrapper = streamObject();
+  } else {
+    throw new Error(`Unsupported JSON root character: ${firstChar}`);
   }
 
-  // 5) NDJSON branch
-  return new Promise((resolve, reject) => {
-    const records = [];
-    const rl = createInterface({ input: stream });
+  // 6) Stream and flatten up to MAX records, then abort cleanly
+  const records = [];
+  const MAX = 10_000;
 
-    rl.on("line", (line) => {
-      if (!line.trim() || records.length >= 10000) return;
-      try {
-        records.push(flattenRecord(JSON.parse(line)));
-      } catch {
-        // skip bad JSON
-      }
-    });
+  // Use built-in AbortController to cancel pipeline when MAX reached
+  const controller = new AbortController();
+  const { signal } = controller;
 
-    rl.on("close", () => {
-      // drain the rest so the socket closes cleanly
-      stream.resume();
-      finish(records, resolve);
-    });
-    rl.on("error", reject);
-  });
+  try {
+    await pipeline(
+      replay,
+      parserStream,
+      unwrapper,
+      async function* (source) {
+        for await (const { value } of source) {
+          records.push(flattenRecord(value));
+          if (records.length >= MAX) {
+            controller.abort(); // signals pipeline to stop
+            return; // end the async generator
+          }
+        }
+      },
+      { signal } // pass the AbortSignal into pipeline
+    );
+  } catch (err) {
+    // Ignore the AbortError we expect, re-throw anything else
+    const isAbort =
+      err.name === "AbortError" || /premature close/i.test(err.message);
+    if (!isAbort) throw err;
+  }
+
+  // 7) Build & return your SQL using exactly the records you collected
+  return buildPgSql(tableName, records);
 }
-
-
-
 
 // ==============================
 // DELIMITED to PGSQL (streaming first 10000)
@@ -326,4 +417,3 @@ export async function delimitedToPgsql(
 // Convenience wrappers
 export const csvToPgsql = (key, tbl) => delimitedToPgsql(key, tbl, ",");
 export const pipeToPgsql = (key, tbl) => delimitedToPgsql(key, tbl, "|");
-

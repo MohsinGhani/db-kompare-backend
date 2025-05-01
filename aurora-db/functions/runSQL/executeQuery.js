@@ -83,10 +83,6 @@ export const handler = async (event) => {
     return sendResponse(200, "Query executed successfully", payload);
   } catch (error) {
     console.error("Error executing handler:", error);
-    return sendResponse(
-      500,
-      { error: error.message || "Internal server error" },
-      null
-    );
+    return sendResponse(500, error.message || "Internal server error", null);
   }
 };
