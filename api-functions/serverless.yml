@@ -25,6 +25,7 @@ custom:
   dbToolsAggregationTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.DB_TOOLS_AGGREGATED_TABLE}
   submissionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.SUBMISSIONS_TABLE}
   profilingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.PROFILING_TABLE}
+  fiddleTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.FIDDLES_TABLE}
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -73,6 +74,7 @@ provider:
     DB_TOOLS_AGGREGATED_TABLE: db-kompare-dbtools-aggregated-${self:provider.stage}
     SUBMISSIONS_TABLE: db-kompare-submissions-${self:provider.stage}
     PROFILING_TABLE: db-kompare-profiling-${self:provider.stage}
+    FIDDLES_TABLE: db-kompare-fiddles-${self:provider.stage}
     STACK_API_KEY: ${env:STACK_API_KEY}
     GITHUB_TOKEN: ${env:GITHUB_TOKEN}
     GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -112,6 +114,8 @@ provider:
             - ${self:custom.questionsTableArn}/index/byStatus
             - ${self:custom.profilingTableArn}
             - ${self:custom.profilingTableArn}/index/*
+            - ${self:custom.fiddleTableArn}
+            - ${self:custom.fiddleTableArn}/index/*
             - ${self:custom.questionsTableArn}
             - ${self:custom.databaseAggregationTableArn}
             - ${self:custom.dbToolsAggregationTableArn}

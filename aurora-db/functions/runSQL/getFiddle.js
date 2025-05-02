@@ -18,14 +18,11 @@ export const handler = async (event) => {
         TableName: TABLE_NAME.FIDDLES,
         IndexName: "byOwnerId",
         KeyConditionExpression: "ownerId = :userId",
-        ExpressionAttributeValues: {
-          ":userId": userId,
-        },
+        ExpressionAttributeValues: { ":userId": userId },
       };
 
-      // Query the DynamoDB table using your helper function
+      // Query and get the most recent fiddle
       const fiddles = await fetchAllItemByDynamodbIndex(params);
-      // Sort fiddles by updatedAt in descending order.
       fiddle = fiddles.sort((a, b) => b.updatedAt - a.updatedAt)[0];
     } else {
       const result = await getItem(TABLE_NAME.FIDDLES, { id });
@@ -35,39 +32,54 @@ export const handler = async (event) => {
       fiddle = result.Item;
     }
 
-    // For each table name listed in the fiddle's `tables` array,
-    // run a query on Postgres to fetch its data.
-    if (fiddle.tables && Array.isArray(fiddle.tables)) {
-      const userId = fiddle.ownerId;
+    // If tables are defined, fetch data from Postgres and filter missing ones
+    if (Array.isArray(fiddle.tables) && fiddle.tables.length > 0) {
+      const ownerId = fiddle.ownerId;
+
+      // Attempt to query each table; null if missing
       const tableDataEntries = await Promise.all(
         fiddle.tables.map(async (table) => {
-          // a) Normalize to a string table name
           const tableName = table?.name;
+          if (!tableName) return null;
 
-          // b) Construct a valid SQL: quote the identifier, then apply LIMIT
           const sql = `SELECT * FROM "${tableName}" LIMIT 500;`;
 
-          // c) Execute and unpack
-          const { columns, rows } = await executeUserQuery(userId, sql);
-
-          // d) Build a header row object { col1: col1, col2: col2, … }
-          const header = columns.reduce((h, col) => {
-            h[col] = col;
-            return h;
-          }, {});
-
-          // e) Combine header + data rows
-          return [tableName, [header, ...rows]];
+          try {
+            const { columns, rows } = await executeUserQuery(ownerId, sql);
+            const header = columns.reduce((h, col) => {
+              h[col] = col;
+              return h;
+            }, {});
+            return [tableName, [header, ...rows]];
+          } catch (err) {
+            const msg = err.message || "";
+            if (msg.includes("does not exist") || msg.includes("relation")) {
+              console.warn(
+                `Postgres table "${tableName}" not found, skipping.`
+              );
+              return null;
+            }
+            throw err;
+          }
         })
       );
 
-      // Construct an object mapping each table name to its data sample.
-      fiddle.dataSample = Object.fromEntries(tableDataEntries);
+      // Remove missing table entries
+      const validEntries = tableDataEntries.filter((entry) => entry !== null);
+
+      // Build dataSample map
+      fiddle.dataSample = Object.fromEntries(validEntries);
+
+      // Also filter the original tables list to only include existing ones
+      const validTableNames = validEntries.map(([name]) => name);
+      fiddle.tables = fiddle.tables.filter((t) =>
+        validTableNames.includes(t.name)
+      );
     }
 
     return sendResponse(200, "Fiddle fetched successfully", fiddle);
   } catch (error) {
     console.error("Error fetching fiddle:", error);
-    return sendResponse(500, error, null);
+    return sendResponse(500, error.message || "Internal server error", null);
   }
 };

@@ -18,6 +18,7 @@ export const TABLE_NAME = {
   DB_TOOLS_AGGREGATED: process.env.DB_TOOLS_AGGREGATED_TABLE,
   SUBMISSIONS: process.env.SUBMISSIONS_TABLE,
   PROFILING: process.env.PROFILING_TABLE,
+  FIDDLES: process.env.FIDDLES_TABLE,
 };
 
 export const STATUS_CODE = {
