@@ -34,8 +34,8 @@ export const handler = async (event) => {
 
     // If tables are defined, fetch data from Postgres and filter missing ones
     if (Array.isArray(fiddle.tables) && fiddle.tables.length > 0) {
-      const ownerId = fiddle.ownerId;
-
+      const ownerId = fiddle.ownerId || "common";
+      console.log(`Fetching tables for ownerId: ${ownerId}`);
       // Attempt to query each table; null if missing
       const tableDataEntries = await Promise.all(
         fiddle.tables.map(async (table) => {
@@ -46,6 +46,10 @@ export const handler = async (event) => {
 
           try {
             const { columns, rows } = await executeUserQuery(ownerId, sql);
+
+            console.log("columns", columns);
+            console.log("rows", rows);
+
             const header = columns.reduce((h, col) => {
               h[col] = col;
               return h;

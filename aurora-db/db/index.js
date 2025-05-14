@@ -51,10 +51,22 @@ export async function executeCommonQuery(query, params = []) {
 
 export async function executeUserQuery(userId, query, params = []) {
   const client = await commonPool.connect();
+  let schema;
+
+  if (userId !== "common" && userId) {
+    schema = `"user_${userId}"`;
+    console.log(`Using user-specific schema: ${schema}`);
+  } else if (userId === "common") {
+    schema = `"common_schema"`;
+    console.log("Using common schema");
+  } else {
+    throw new Error("Invalid userId");
+  }
+
   try {
     await client.query("BEGIN");
     // Set the search_path to the user-specific schema, e.g., user_123
-    await client.query(`SET LOCAL search_path TO "user_${userId}"`);
+    await client.query(`SET LOCAL search_path TO ${schema}`);
 
     const startTime = Date.now();
     const result = await client.query(query, params);

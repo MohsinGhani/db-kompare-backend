@@ -9,7 +9,7 @@ import {
 export const handler = async (event) => {
   try {
     const {
-      userId,
+      userId: user_id,
       query: rawQuery,
       fileType,
       url_KEY,
@@ -17,10 +17,7 @@ export const handler = async (event) => {
       fileExtension,
     } = JSON.parse(event.body || "{}");
 
-    // Must always have a user
-    if (!userId) {
-      return sendResponse(400, "Missing userId", null);
-    }
+    let userId = user_id || "common";
 
     let sqlToRun;
 
