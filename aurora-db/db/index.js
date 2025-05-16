@@ -11,6 +11,13 @@ const readonlyPool = new Pool({
 
 // Create a pool for the common (read-write) connection
 const commonPool = new Pool({
+  connectionString: process.env.DATABASE_URL_COMMON,
+  ssl: {
+    rejectUnauthorized: false, // disable verification
+  },
+});
+
+const adminPool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false, // disable verification
@@ -34,6 +41,20 @@ export async function executeReadOnlyQuery(query, params = []) {
 }
 
 // Function to execute a query on the common schema
+export async function executeAdminQuery(query, params = []) {
+  const client = await adminPool.connect();
+  try {
+    const startTime = Date.now();
+    const result = await client.query(query, params);
+    const executionTime = Date.now() - startTime;
+    const columns = result.fields?.map((field) => field.name) || [];
+    return { columns, rows: result.rows, executionTime };
+  } catch (err) {
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 export async function executeCommonQuery(query, params = []) {
   const client = await commonPool.connect();
   try {

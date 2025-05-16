@@ -1,4 +1,4 @@
-import { executeCommonQuery } from "../../db/index.js";
+import { executeAdminQuery, executeCommonQuery } from "../../db/index.js";
 import { sendResponse } from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
@@ -6,9 +6,40 @@ export const handler = async (event) => {
   const { userId } = JSON.parse(event.body || "{}");
   const schemaName = `user_${userId}`;
 
+  const admin_role = process.env.PG_USER;
+  const common_role = process.env.PG_COMMON_USER;
+
   try {
     // 1. Create the schema if it does not exist.
-    await executeCommonQuery(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+    await executeAdminQuery(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+
+    await executeAdminQuery(`
+      GRANT USAGE, CREATE
+        ON SCHEMA "${schemaName}"
+        TO "${common_role}";
+
+      GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE
+        ON ALL TABLES IN SCHEMA "${schemaName}"
+        TO "${common_role}";
+
+      GRANT USAGE
+        ON ALL SEQUENCES IN SCHEMA "${schemaName}"
+        TO "${common_role}";
+
+      ALTER DEFAULT PRIVILEGES
+        FOR ROLE "${admin_role}"
+        IN SCHEMA "${schemaName}"
+        GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE
+          ON TABLES
+          TO "${common_role}";
+
+      ALTER DEFAULT PRIVILEGES
+        FOR ROLE "${admin_role}"
+        IN SCHEMA "${schemaName}"
+        GRANT USAGE
+          ON SEQUENCES
+          TO "${common_role}";
+    `);
 
     // 2. Create the 'users' table.
     const createUsersTableQuery = `
@@ -53,6 +84,7 @@ export const handler = async (event) => {
 
     return sendResponse(200, "Schema and tables created successfully.", true);
   } catch (error) {
+    console.log("Error creating schema or tables:", error);
     sendResponse(
       500,
       "Error creating schema, tables, or inserting data.",
