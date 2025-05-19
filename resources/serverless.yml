@@ -334,6 +334,35 @@ resources:
                 KeyType: HASH # GSI partition key for querying companies by status
             Projection:
               ProjectionType: ALL
+    Quizzes:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-quizzes-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S # Primary key as string
+          - AttributeName: category
+            AttributeType: S # Used for querying by category
+          - AttributeName: status
+            AttributeType: S # GSI for querying by status
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH # Primary partition key
+        GlobalSecondaryIndexes:
+          - IndexName: byCategory
+            KeySchema:
+              - AttributeName: category
+                KeyType: HASH # GSI partition key for querying quizzes by category
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byStatus
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH # GSI partition key for querying quizzes by category
+            Projection:
+              ProjectionType: ALL
 
     Profiling:
       Type: AWS::DynamoDB::Table
