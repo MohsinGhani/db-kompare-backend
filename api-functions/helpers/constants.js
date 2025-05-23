@@ -20,6 +20,7 @@ export const TABLE_NAME = {
   PROFILING: process.env.PROFILING_TABLE,
   FIDDLES: process.env.FIDDLES_TABLE,
   QUIZZES: process.env.QUIZZES_TABLE,
+  QUIZZES_SUBMISSIONS: process.env.QUIZZES_SUBMISSIONS_TABLE,
 };
 
 export const STATUS_CODE = {
@@ -84,6 +85,11 @@ export const TOPICS_CATEGORIES = {
   ORACLE: "ORACLE",
   MSSQL: "MSSQL",
   OTHER: "OTHER",
+};
+
+export const QUIZ_SUBMISSION_STATUS = {
+  PASSED: "PASSED",
+  FAILED: "FAILED",
 };
 
 export const SUPPORTED_RUNTIME = {

@@ -363,6 +363,43 @@ resources:
                 KeyType: HASH # GSI partition key for querying quizzes by category
             Projection:
               ProjectionType: ALL
+    QuizSubmissions:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-quiz-submissions-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S     # Primary key (submission ID)
+          - AttributeName: quizId
+            AttributeType: S     # GSI for querying all submissions of a quiz
+          - AttributeName: userId
+            AttributeType: S     # GSI for querying all submissions by a user
+          - AttributeName: submittedAt
+            AttributeType: S     # GSI for querying submissions in time order
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH         # Partition key = submission ID
+        GlobalSecondaryIndexes:
+          - IndexName: byQuiz
+            KeySchema:
+              - AttributeName: quizId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byUser
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: bySubmittedAt
+            KeySchema:
+              - AttributeName: submittedAt
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
 
     Profiling:
       Type: AWS::DynamoDB::Table
