@@ -400,6 +400,43 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+    Certificates:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-certificates-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S               # Primary key (certificate ID)
+          - AttributeName: subjectId
+            AttributeType: S               # GSI for querying certs by subject (e.g., course/quiz)
+          - AttributeName: userId
+            AttributeType: S               # GSI for querying certs by user
+          - AttributeName: submissionId
+            AttributeType: S               # GSI for linking to quiz submission
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH                  # Partition key = certificate ID
+        GlobalSecondaryIndexes:
+          - IndexName: bySubject
+            KeySchema:
+              - AttributeName: subjectId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL           # Project all attributes
+          - IndexName: byUser
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: bySubmission
+            KeySchema:
+              - AttributeName: submissionId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
 
     Profiling:
       Type: AWS::DynamoDB::Table

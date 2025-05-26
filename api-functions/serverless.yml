@@ -28,6 +28,8 @@ custom:
   fiddleTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.FIDDLES_TABLE}
   quizzesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_TABLE}
   quizzesSubmissionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_SUBMISSIONS_TABLE}
+  certificatesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.CERTIFICATES_TABLE}
+  
 
   COGNITO_CALLBACK_URLS:
     dev:
@@ -73,6 +75,7 @@ provider:
     QUIZZES_TABLE: db-kompare-quizzes-${self:provider.stage}
     QUIZZES_SUBMISSIONS_TABLE: db-kompare-quiz-submissions-${self:provider.stage}
     TAGS_TABLE: db-kompare-tags-${self:provider.stage}
+    CERTIFICATES_TABLE: db-kompare-certificates-${self:provider.stage}
     COMPANIES_TABLE: db-kompare-companies-${self:provider.stage}
     DATABASE_AGGREGATED_TABLE: db-kompare-database-aggregated-${self:provider.stage}
     DB_TOOLS_AGGREGATED_TABLE: db-kompare-dbtools-aggregated-${self:provider.stage}
@@ -118,6 +121,8 @@ provider:
             - ${self:custom.questionsTableArn}/index/byStatus
             - ${self:custom.profilingTableArn}
             - ${self:custom.profilingTableArn}/index/*
+            - ${self:custom.certificatesTableArn}
+            - ${self:custom.certificatesTableArn}/index/*
             - ${self:custom.fiddleTableArn}
             - ${self:custom.fiddleTableArn}/index/*
             - ${self:custom.quizzesTableArn}

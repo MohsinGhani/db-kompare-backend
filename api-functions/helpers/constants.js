@@ -21,6 +21,7 @@ export const TABLE_NAME = {
   FIDDLES: process.env.FIDDLES_TABLE,
   QUIZZES: process.env.QUIZZES_TABLE,
   QUIZZES_SUBMISSIONS: process.env.QUIZZES_SUBMISSIONS_TABLE,
+  CERTIFICATES: process.env.CERTIFICATES_TABLE,
 };
 
 export const STATUS_CODE = {
