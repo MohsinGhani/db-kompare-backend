@@ -753,6 +753,26 @@ functions:
           private: true
           cors: true
 
+
+  ## --------- CERTIFICATES functions---------
+  getCertificates:
+    handler: functions/certificates/getCertificates.handler
+    events:
+      - http:
+          path: /get-certificates
+          method: get
+          private: true
+          cors: true
+
+  getSingleCertificate:
+    handler: functions/certificates/getSingleCertificate.handler
+    events:
+      - http:
+          path: certificate/{id}
+          method: get
+          private: true
+          cors: true
+
   ## --------- TAGS functions---------
   createTag:
     handler: functions/tags/createTag.handler

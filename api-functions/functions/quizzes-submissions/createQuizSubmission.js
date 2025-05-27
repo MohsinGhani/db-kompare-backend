@@ -43,7 +43,8 @@ export const handler = async (event) => {
       answers,
       submissionId,
       passed,
-      certificateId
+      certificateId,
+      percentageScore,
     );
 
     // Handle certificate generation if passed
@@ -66,11 +67,16 @@ export const handler = async (event) => {
         },
       });
 
+      const metaData={
+        score: percentageScore,
+        quizName:quiz?.name,
+      } 
       await createCertificateRecord(
         certificateId,
         quizId,
         userId,
-        submissionId
+        submissionId,
+        metaData
       );
     }
 
@@ -269,7 +275,8 @@ const createCertificateRecord = async (
   certificateId,
   quizId,
   userId,
-  submissionId
+  submissionId,
+  metaData = {}
 ) => {
   const certificateItem = {
     id: certificateId,
@@ -278,6 +285,7 @@ const createCertificateRecord = async (
     submissionId,
     issueDate: getTimestamp(),
     status: QUERY_STATUS.ACTIVE,
+    metaData
   };
 
   await createItemInDynamoDB(
