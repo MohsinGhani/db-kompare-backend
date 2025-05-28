@@ -47,6 +47,9 @@ export const handler = async (event) => {
     });
 
     const quizNo = (existing.length || 0) + 1;
+    const defaultParticipants = Math.floor(
+      Math.random() * (400 - 150 + 1) + 150
+    );
 
     const quizItem = {
       id: uuidv4(),
@@ -61,6 +64,7 @@ export const handler = async (event) => {
       quizNo,
       totalQuestions,
       createdBy,
+      defaultParticipants
     };
 
     // Write quiz record

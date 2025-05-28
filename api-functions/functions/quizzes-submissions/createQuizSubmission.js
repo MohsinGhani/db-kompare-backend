@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from "pdf-lib";
+import { PDFDocument, rgb,StandardFonts } from "pdf-lib";
 import { v4 as uuidv4 } from "uuid";
 import ShortUniqueId from "short-unique-id";
 import { getItem, createItemInDynamoDB } from "../../helpers/dynamodb.js";
@@ -44,7 +44,7 @@ export const handler = async (event) => {
       submissionId,
       passed,
       certificateId,
-      percentageScore,
+      percentageScore
     );
 
     // Handle certificate generation if passed
@@ -67,10 +67,10 @@ export const handler = async (event) => {
         },
       });
 
-      const metaData={
+      const metaData = {
         score: percentageScore,
-        quizName:quiz?.name,
-      } 
+        quizName: quiz?.name,
+      };
       await createCertificateRecord(
         certificateId,
         quizId,
@@ -167,7 +167,6 @@ const createQuizSubmission = async (
   passed,
   certificateId = null
 ) => {
-
   const { correctCount, totalScore } = calculateQuizScore(
     quiz.questions,
     answers
@@ -206,6 +205,19 @@ const createQuizSubmission = async (
   return { submissionItem, correctCount, totalScore, percentageScore };
 };
 
+const getAutoFontSize = (font, text, wrapWidth, {
+  defaultSize = 60,
+  minSize     = 14,
+} = {}) => {
+  // width of the text at size = 1
+  const unitWidth = font.widthOfTextAtSize(text, 1);
+  // ideal size so that unitWidth * size ≤ wrapWidth
+  const idealSize = Math.floor(wrapWidth / unitWidth);
+  // clamp between minSize and defaultSize
+  return Math.max(minSize, Math.min(defaultSize, idealSize));
+};
+
+
 const generateCertificate = async ({
   bucket,
   templateKey,
@@ -216,18 +228,25 @@ const generateCertificate = async ({
   const pdfDoc = await PDFDocument.load(templateBytes);
   const page = pdfDoc.getPage(0);
   const { width, height } = page.getSize();
-
+  // embed a real font so we can measure text width
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const marginX = 220;
   const wrapWidth = width - marginX * 2;
   const nameColor = rgb(33 / 255, 49 / 255, 151 / 255);
   const linkColor = rgb(89 / 255, 148 / 255, 238 / 255);
-
+  // Compute a size that exactly fits the name into wrapWidth
+  const nameSize = getAutoFontSize(font, fields.name, wrapWidth, {
+    defaultSize: 48,
+    minSize:     16,
+  });
   // Draw user name
   page.drawText(fields.name, {
     x: 80,
     y: height - 450,
-    size: 48,
+    size: nameSize,
     color: nameColor,
+    maxWidth: wrapWidth,
+    lineHeight: 32,
   });
 
   // Draw certificate ID
@@ -285,7 +304,7 @@ const createCertificateRecord = async (
     submissionId,
     issueDate: getTimestamp(),
     status: QUERY_STATUS.ACTIVE,
-    metaData
+    metaData,
   };
 
   await createItemInDynamoDB(

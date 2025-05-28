@@ -1,16 +1,30 @@
 // src/functions/getQuizzes.js
 import { sendResponse } from "../../helpers/helpers.js";
 import { fetchAllItemByDynamodbIndex } from "../../helpers/dynamodb.js";
+import { fetchUserById } from "../common/fetchUserById.js";
 import { TABLE_NAME, QUERY_STATUS } from "../../helpers/constants.js";
 
+/**
+ * Lambda handler to fetch quizzes and enrich them with participant info.
+ *
+ * Query parameters:
+ * - status (optional): Filters quizzes by status (default: ACTIVE)
+ * - userId (optional): Marks which quizzes the user has already taken
+ *
+ * Each quiz in the response will include:
+ * - taken: boolean (has this user taken the quiz?)
+ * - defaultParticipants: number (initial random participants set at creation)
+ * - recentParticipants: up to 3 most recent real participants (with basic user info)
+ * - otherParticipantsCount: count of remaining participants (default + real minus top 3)
+ */
 export const handler = async (event) => {
   try {
-    // Parse query parameters
+    // 1. Read query parameters, with defaults
     const params = event.queryStringParameters || {};
     const status = params.status || QUERY_STATUS.ACTIVE;
     const userId = params.userId;
 
-    // Fetch quizzes by status using the byStatus GSI
+    // 2. Fetch all quizzes matching the status
     const quizzes = await fetchAllItemByDynamodbIndex({
       TableName: TABLE_NAME.QUIZZES,
       IndexName: "byStatus",
@@ -19,40 +33,97 @@ export const handler = async (event) => {
       ExpressionAttributeValues: { ":status": status },
     });
 
-    let quizzesWithTaken =
-      quizzes?.map((quiz) => ({
-        ...quiz,
-        questions:
-          quiz.questions?.map((q) => ({
-            ...q,
-            options: q.options?.map((o) => ({
-             id: o?.id,
-             text: o?.text,
-            })),
-          })) || [],
-        taken: false,
-      })) || [];
+    // 3. Initialize each quiz's 'taken' flag and capture default participants
+    let quizzesWithTaken = quizzes.map((quiz) => ({
+      ...quiz,
+      taken: false,
+      defaultParticipants: quiz.defaultParticipants || 0, // initial random participants
+    }));
+
+    // 4. If a userId is provided, mark quizzes they've taken
     if (userId) {
-      // Fetch user's submissions to determine which quizzes are taken
+      // Fetch this user's quiz submissions
       const submissions = await fetchAllItemByDynamodbIndex({
-        TableName: TABLE_NAME.QUIZZES_SUBMISSIONS, // ensure your constants define this
-        IndexName: "byUser", // ensure this GSI exists on your submissions table
+        TableName: TABLE_NAME.QUIZZES_SUBMISSIONS,
+        IndexName: "byUser",
         KeyConditionExpression: "#userId = :userId",
         ExpressionAttributeNames: { "#userId": "userId" },
         ExpressionAttributeValues: { ":userId": userId },
       });
 
+      // Build a set of quiz IDs the user has taken
       const takenQuizIds = new Set(submissions.map((s) => s.quizId));
 
-      quizzesWithTaken = quizzes.map((quiz) => ({
+      // Update 'taken' flag accordingly
+      quizzesWithTaken = quizzesWithTaken.map((quiz) => ({
         ...quiz,
         taken: takenQuizIds.has(quiz.id),
       }));
     }
 
-    return sendResponse(200, "Quizzes fetched successfully", quizzesWithTaken);
+    // 5. Enrich quizzes with participant details
+    const enrichedQuizzes = await Promise.all(
+      quizzesWithTaken.map(async (quiz) => {
+        // 5a. Fetch all real submissions for this quiz, newest first
+        const subs = await fetchAllItemByDynamodbIndex({
+          TableName: TABLE_NAME.QUIZZES_SUBMISSIONS,
+          IndexName: "byQuiz",
+          KeyConditionExpression: "#quizId = :quizId",
+          ExpressionAttributeNames: { "#quizId": "quizId" },
+          ExpressionAttributeValues: { ":quizId": quiz.id },
+          ScanIndexForward: false, // descending order (latest first)
+        });
+
+        // 5b. Get up to 3 most recent real submissions
+        const recentSubs = subs.slice(0, 3);
+
+        console.log("recentSubs", recentSubs);
+
+        // 5c. Fetch basic user info for each recent submission
+        const recentParticipants = await Promise.all(
+          recentSubs.map(async (submission) => {
+            const user = await fetchUserById(submission.userId);
+            return {
+              user:
+                user === "Unknown"
+                  ? { id: submission.userId, unknown: true }
+                  : { id: user.id, name: user.name, email: user.email },
+              submittedAt: submission.submittedAt,
+            };
+          })
+        );
+
+        // 5d. Calculate counts including default participants
+        const totalReal = subs.length;
+        const defaultCount = quiz.defaultParticipants;
+        const totalCount = defaultCount + totalReal;
+        console.log(
+          "totalCount",
+          totalCount,
+          "defaultCount",
+          defaultCount,
+          "totalReal",
+          totalReal
+        );
+        // Participants beyond the top 3
+        const otherParticipantsCount = Math.max(
+          0,
+          totalCount - recentParticipants.length
+        );
+
+        return {
+          ...quiz,
+          recentParticipants,
+          otherParticipantsCount,
+        };
+      })
+    );
+
+    // 6. Return the final enriched quiz list
+    return sendResponse(200, "Quizzes fetched successfully", enrichedQuizzes);
   } catch (error) {
     console.error("Error fetching quizzes:", error);
+    // Return a 500 error with a helpful message
     return sendResponse(500, "Error fetching quizzes", error.message);
   }
 };
