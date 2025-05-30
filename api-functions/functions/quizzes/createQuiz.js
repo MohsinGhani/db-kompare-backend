@@ -18,6 +18,9 @@ export const handler = async (event) => {
       questions,
       totalQuestions,
       createdBy,
+      quizImage,
+      startDate,
+      endDate,
       // Any other quiz-level fields can go here
     } = JSON.parse(event.body || "{}");
 
@@ -64,7 +67,11 @@ export const handler = async (event) => {
       quizNo,
       totalQuestions,
       createdBy,
-      defaultParticipants
+      defaultParticipants,
+      quizImage,
+      startDate,
+      endDate,
+      // Any other quiz-level fields can go here
     };
 
     // Write quiz record
