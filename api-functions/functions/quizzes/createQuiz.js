@@ -21,6 +21,7 @@ export const handler = async (event) => {
       quizImage,
       startDate,
       endDate,
+      decreaseQuestions
       // Any other quiz-level fields can go here
     } = JSON.parse(event.body || "{}");
 
@@ -71,6 +72,7 @@ export const handler = async (event) => {
       quizImage,
       startDate,
       endDate,
+      decreaseQuestions
       // Any other quiz-level fields can go here
     };
 
