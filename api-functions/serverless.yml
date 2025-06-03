@@ -34,11 +34,11 @@ custom:
   COGNITO_CALLBACK_URLS:
     dev:
       urls:
-        - http://localhost:3000/auth
-        - https://db-kompare-frontend.vercel.app
-        - https://db-kompare-frontend.vercel.app/auth
+        - http://localhost:3000/auth?
+        - https://db-kompare-frontend.vercel.app?
+        - https://db-kompare-frontend.vercel.app/auth?
         - https://www.dbkompare.com
-        - https://www.dbkompare.com/auth
+        - https://www.dbkompare.com/auth?
   COGNITO_LOGOUT_URLS:
     dev:
       urls:
