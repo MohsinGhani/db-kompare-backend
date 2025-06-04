@@ -27,6 +27,7 @@ custom:
   profilingTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.PROFILING_TABLE}
   fiddleTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.FIDDLES_TABLE}
   quizzesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_TABLE}
+  quizzesQuestionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_QUESTIONS_TABLE}
   quizzesSubmissionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_SUBMISSIONS_TABLE}
   certificatesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.CERTIFICATES_TABLE}
   
@@ -73,6 +74,7 @@ provider:
     DB_TOOLS_RANKINGS_TABLE: db-kompare-dbtools-rankings-${self:provider.stage}
     QUESTIONS_TABLE: db-kompare-questions-${self:provider.stage}
     QUIZZES_TABLE: db-kompare-quizzes-${self:provider.stage}
+    QUIZZES_QUESTIONS_TABLE: db-kompare-quizzes-questions-${self:provider.stage}
     QUIZZES_SUBMISSIONS_TABLE: db-kompare-quiz-submissions-${self:provider.stage}
     TAGS_TABLE: db-kompare-tags-${self:provider.stage}
     CERTIFICATES_TABLE: db-kompare-certificates-${self:provider.stage}
@@ -127,6 +129,8 @@ provider:
             - ${self:custom.fiddleTableArn}/index/*
             - ${self:custom.quizzesTableArn}
             - ${self:custom.quizzesTableArn}/index/*
+            - ${self:custom.quizzesQuestionsTableArn}
+            - ${self:custom.quizzesQuestionsTableArn}/index/*
             - ${self:custom.quizzesSubmissionsTableArn}
             - ${self:custom.quizzesSubmissionsTableArn}/index/*
             - ${self:custom.questionsTableArn}
@@ -699,6 +703,16 @@ functions:
           method: post
           private: true
           cors: true
+
+  createQuizQuestions:
+    handler: functions/quizzes/createQuizQuestions.handler
+    events:
+      - http:
+          path: /create-quiz-questions
+          method: post
+          private: true
+          cors: true
+
   createQuizSubmission:
     handler: functions/quizzes-submissions/createQuizSubmission.handler
     events:
@@ -713,6 +727,15 @@ functions:
     events:
       - http:
           path: /get-quizzes
+          method: get
+          private: true
+          cors: true
+
+  getQuizQuestions:
+    handler: functions/quizzes/getQuizQuestions.handler
+    events:
+      - http:
+          path: /get-quiz-questions
           method: get
           private: true
           cors: true

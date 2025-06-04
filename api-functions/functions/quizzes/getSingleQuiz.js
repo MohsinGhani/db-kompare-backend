@@ -16,7 +16,6 @@ export const handler = async (event) => {
     if (!result || !result.Item) {
       return sendResponse(404, "Quiz not found", null);
     }
-
     // Return the quiz item
     return sendResponse(200, "Quiz fetched successfully", result.Item);
   } catch (error) {

@@ -77,7 +77,6 @@ export const handler = async (event) => {
         // 5b. Get up to 3 most recent real submissions
         const recentSubs = subs.slice(0, 3);
 
-        console.log("recentSubs", recentSubs);
 
         // 5c. Fetch basic user info for each recent submission
         const recentParticipants = await Promise.all(
@@ -97,14 +96,7 @@ export const handler = async (event) => {
         const totalReal = subs.length;
         const defaultCount = quiz.defaultParticipants;
         const totalCount = defaultCount + totalReal;
-        console.log(
-          "totalCount",
-          totalCount,
-          "defaultCount",
-          defaultCount,
-          "totalReal",
-          totalReal
-        );
+      
         // Participants beyond the top 3
         const otherParticipantsCount = Math.max(
           0,
