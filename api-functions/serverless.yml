@@ -767,11 +767,29 @@ functions:
           private: true
           cors: true
 
+  updateQuizQuestion:
+    handler: functions/quizzes/updateQuizQuestion.handler
+    events:
+      - http:
+          path: quiz-question/{id}
+          method: put
+          private: true
+          cors: true
+
   deleteQuiz:
     handler: functions/quizzes/deleteQuiz.handler
     events:
       - http:
           path: quiz/{id}
+          method: delete
+          private: true
+          cors: true
+          
+  deleteQuizQuestion:
+    handler: functions/quizzes/deleteQuizQuestion.handler
+    events:
+      - http:
+          path: quiz-question/{id}
           method: delete
           private: true
           cors: true
