@@ -30,6 +30,7 @@ custom:
   quizzesQuestionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_QUESTIONS_TABLE}
   quizzesSubmissionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_SUBMISSIONS_TABLE}
   certificatesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.CERTIFICATES_TABLE}
+  categoriesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.CATEGORIES_TABLE}
   
 
   COGNITO_CALLBACK_URLS:
@@ -77,6 +78,7 @@ provider:
     QUIZZES_QUESTIONS_TABLE: db-kompare-quizzes-questions-${self:provider.stage}
     QUIZZES_SUBMISSIONS_TABLE: db-kompare-quiz-submissions-${self:provider.stage}
     TAGS_TABLE: db-kompare-tags-${self:provider.stage}
+    CATEGORIES_TABLE: db-kompare-categories-${self:provider.stage}
     CERTIFICATES_TABLE: db-kompare-certificates-${self:provider.stage}
     COMPANIES_TABLE: db-kompare-companies-${self:provider.stage}
     DATABASE_AGGREGATED_TABLE: db-kompare-database-aggregated-${self:provider.stage}
@@ -125,6 +127,8 @@ provider:
             - ${self:custom.profilingTableArn}/index/*
             - ${self:custom.certificatesTableArn}
             - ${self:custom.certificatesTableArn}/index/*
+            - ${self:custom.categoriesTableArn}
+            - ${self:custom.categoriesTableArn}/index/*
             - ${self:custom.fiddleTableArn}
             - ${self:custom.fiddleTableArn}/index/*
             - ${self:custom.quizzesTableArn}
@@ -794,7 +798,43 @@ functions:
           private: true
           cors: true
 
+  ## --------- Categories functions---------
 
+  createCategory:
+    handler: functions/categories/createCategory.handler
+    events:
+      - http:
+          path: /create-category
+          method: post
+          private: true
+          cors: true
+
+  getCategories:
+    handler: functions/categories/getCategories.handler
+    events:
+      - http:
+          path: /get-categories
+          method: get
+          private: true
+          cors: true
+
+  updateCategory:
+    handler: functions/categories/updateCategory.handler
+    events:
+      - http:
+          path: category/{id}
+          method: put
+          private: true
+          cors: true                
+  deleteCategory:
+    handler: functions/categories/deleteCategory.handler
+    events:
+      - http:
+          path: category/{id}
+          method: delete
+          private: true
+          cors: true
+          
   ## --------- CERTIFICATES functions---------
   getCertificates:
     handler: functions/certificates/getCertificates.handler
