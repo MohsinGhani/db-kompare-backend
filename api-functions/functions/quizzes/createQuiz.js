@@ -21,7 +21,9 @@ export const handler = async (event) => {
       quizImage,
       startDate,
       endDate,
-      desiredQuestions
+      desiredQuestions,
+      questionIds= [],
+
       // Any other quiz-level fields can go here
     } = JSON.parse(event.body || "{}");
 
@@ -72,7 +74,8 @@ export const handler = async (event) => {
       quizImage,
       startDate,
       endDate,
-      desiredQuestions
+      desiredQuestions,
+      questionIds
       // Any other quiz-level fields can go here
     };
 

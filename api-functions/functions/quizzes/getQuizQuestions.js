@@ -1,4 +1,3 @@
-
 import {
   fetchAllItemByDynamodbIndex
 } from "../../helpers/dynamodb.js";
@@ -9,6 +8,7 @@ import {
 import {
   sendResponse
 } from "../../helpers/helpers.js";
+import { getCategoryById } from "../common/categories.js"; 
 
 export const handler = async (event) => {
   try {
@@ -34,7 +34,23 @@ export const handler = async (event) => {
       },
     });
 
-    // 4. Return the list of questions
+    // 4. If no questions found, return a response indicating no data
+    if (!questions || questions.length === 0) {
+      return sendResponse(404, "No quiz questions found", null);
+    }
+
+    // 5. Collect promises to fetch category details for each question
+    const categoryPromises = questions.map(async (question) => {
+      if (question.category) {
+        const categoryDetails = await getCategoryById(question.category);
+        question.category = categoryDetails; // Assign category details to the question
+      }
+    });
+
+    // 6. Wait for all category details to be fetched concurrently using Promise.all
+    await Promise.all(categoryPromises);
+
+    // 7. Return the list of questions with category details
     return sendResponse(200, "Quiz questions fetched successfully", questions);
   } catch (error) {
     console.error("Error fetching quiz questions:", error);

@@ -403,6 +403,8 @@ resources:
             AttributeType: S # Primary key as string
           - AttributeName: status
             AttributeType: S # GSI for querying by status
+          - AttributeName: name
+            AttributeType: S # GSI for querying by name
         KeySchema:
           - AttributeName: id
             KeyType: HASH # Primary partition key
@@ -410,6 +412,12 @@ resources:
           - IndexName: byStatus
             KeySchema:
               - AttributeName: status
+                KeyType: HASH 
+            Projection:
+              ProjectionType: ALL
+          - IndexName: byName
+            KeySchema:
+              - AttributeName: name
                 KeyType: HASH 
             Projection:
               ProjectionType: ALL

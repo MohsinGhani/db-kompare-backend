@@ -33,7 +33,8 @@ export const handler = async (event) => {
       const categoryItem = {
         id: uuidv4(),
         createdAt: getTimestamp(),
-        name: name.trim(),
+        name: name.trim().toLowerCase(),
+        displayName: name.trim(), // Preserve original for display
         description,
         status: QUERY_STATUS.ACTIVE,
         parentId,
