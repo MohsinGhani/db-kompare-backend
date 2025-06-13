@@ -36,7 +36,7 @@ export const handler = async (event) => {
     }
 
     // 4. Return the quiz with the questions
-    quiz.questionsIdQ = questionsResult.Responses?.[TABLE_NAME.QUIZZES_QUESTIONS] || [];
+    quiz.questions = questionsResult.Responses?.[TABLE_NAME.QUIZZES_QUESTIONS] || [];
 
     console.log("Fetched quiz:", quiz);
     return sendResponse(200, "Quiz and questions fetched successfully", quiz);

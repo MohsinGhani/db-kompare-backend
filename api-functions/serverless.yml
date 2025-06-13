@@ -818,6 +818,15 @@ functions:
           private: true
           cors: true
 
+  getSingleCategory:
+    handler: functions/categories/getSingleCategory.handler
+    events:
+      - http:
+          path: category/{id}
+          method: get
+          private: true
+          cors: true
+
   updateCategory:
     handler: functions/categories/updateCategory.handler
     events:

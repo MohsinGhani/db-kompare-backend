@@ -1,6 +1,7 @@
 import { TABLE_NAME } from "../../helpers/constants.js";
 import { getItem } from "../../helpers/dynamodb.js";
 import { sendResponse } from "../../helpers/helpers.js";
+import { fetchQuizWithQuestions } from "../common/quizzes.js";
 
 export const handler = async (event) => {
   // Extract quiz ID from path parameters
@@ -16,8 +17,8 @@ console.log("id", id);
     }
 
     // Get the original quiz
-    const quizDetails = await getItem(TABLE_NAME.QUIZZES, { id: submission.quizId });
-    const quiz = quizDetails.Item;
+    const quiz = await fetchQuizWithQuestions(submission.quizId);
+    
     console.log("quiz", quiz);
     if (!quiz) {
       return sendResponse(404, "Quiz not found", null);

@@ -15,15 +15,13 @@ export const handler = async (event) => {
       category,
       difficulty,
       description,
-      questions,
-      totalQuestions,
       createdBy,
-      quizImage,
+      image,
       startDate,
       endDate,
       desiredQuestions,
-      questionIds= [],
-
+      questionIds = [],
+      totalQuestions,
       // Any other quiz-level fields can go here
     } = JSON.parse(event.body || "{}");
 
@@ -37,10 +35,18 @@ export const handler = async (event) => {
     }
 
     // Optionally validate questions
-    if (!Array.isArray(questions) || questions.length === 0) {
+    if (!Array.isArray(questionIds) || questionIds.length === 0) {
       return sendResponse(400, "Questions must be a non-empty array", null);
     }
 
+    //
+    if (desiredQuestions && desiredQuestions > questionIds.length) {
+      return sendResponse(
+        400,
+        "Desired questions cannot exceed the number of provided question IDs",
+        null
+      );
+    }
     // Fetch all active quizzes to assign quizNo
     const existing = await fetchAllItemByDynamodbIndex({
       TableName: TABLE_NAME.QUIZZES,
@@ -50,9 +56,10 @@ export const handler = async (event) => {
       ExpressionAttributeValues: {
         ":status": QUERY_STATUS.ACTIVE,
       },
+      CountOnly: true,
     });
 
-    const quizNo = (existing.length || 0) + 1;
+    const quizNo = (existing || 0) + 1;
     const defaultParticipants = Math.floor(
       Math.random() * (400 - 150 + 1) + 150
     );
@@ -65,17 +72,16 @@ export const handler = async (event) => {
       category,
       difficulty,
       description: description || "",
-      questions,
       status: QUERY_STATUS.ACTIVE,
       quizNo,
-      totalQuestions,
+      totalQuestions: totalQuestions || questionIds.length,
       createdBy,
       defaultParticipants,
-      quizImage,
+      image,
       startDate,
       endDate,
       desiredQuestions,
-      questionIds
+      questionIds,
       // Any other quiz-level fields can go here
     };
 

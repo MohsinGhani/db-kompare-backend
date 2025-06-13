@@ -10,6 +10,7 @@ import {
 } from "../../helpers/constants.js";
 import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 import moment from "moment";
+import { fetchQuizWithQuestions } from "../common/quizzes.js";
 
 const uid = new ShortUniqueId({ length: 12 });
 
@@ -21,7 +22,7 @@ export const handler = async (event) => {
 
     // Fetch required data in parallel
     const [quiz, user] = await Promise.all([
-      fetchQuiz(quizId),
+      fetchQuizWithQuestions(quizId),
       fetchUser(userId),
     ]);
 
@@ -112,11 +113,6 @@ const validateInput = (quizId, userId, answers) => {
   }
 };
 
-const fetchQuiz = async (quizId) => {
-  const quizResult = await getItem(TABLE_NAME.QUIZZES, { id: quizId });
-  if (!quizResult?.Item) throw new Error("Quiz not found");
-  return quizResult.Item;
-};
 
 const fetchUser = async (userId) => {
   const userResult = await getItem(TABLE_NAME.USERS, { id: userId });

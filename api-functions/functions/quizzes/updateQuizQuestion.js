@@ -3,6 +3,7 @@
 import { sendResponse } from "../../helpers/helpers.js";
 import { updateItemInDynamoDB, getItem } from "../../helpers/dynamodb.js";
 import { TABLE_NAME } from "../../helpers/constants.js";
+import { getCategoryIdByName } from "../common/categories.js";
 
 export const handler = async (event) => {
   try {
@@ -29,16 +30,23 @@ export const handler = async (event) => {
     const expressionAttributeValues = {};
     const updateClauses = [];
 
-    Object.entries(body).forEach(([key, value]) => {
+    for (let [key, value] of Object.entries(body)) {
       // Do not allow updating the primary key 'id'
-      if (key === "id") return;
+      if (key === "id") continue;
+
+      if (key === "category") {
+        // Fetch category ID by name and update the 'category' field with the ID
+        const categoryId = await getCategoryIdByName(value);
+        // Set category ID instead of category name
+        value = categoryId;
+      }
 
       const nameKey = `#${key}`;
       const valueKey = `:${key}`;
       expressionAttributeNames[nameKey] = key;
       expressionAttributeValues[valueKey] = value;
       updateClauses.push(`${nameKey} = ${valueKey}`);
-    });
+    }
 
     if (!updateClauses.length) {
       return sendResponse(400, "No valid fields to update", null);
