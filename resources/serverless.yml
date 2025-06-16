@@ -392,6 +392,31 @@ resources:
                 KeyType: HASH # GSI partition key for querying quizzes by category
             Projection:
               ProjectionType: ALL
+    UserQuizProgress:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-user-quiz-progress-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S        # PK
+          - AttributeName: quizId
+            AttributeType: S        # SK
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: quizId
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: byQuiz
+            KeySchema:
+              - AttributeName: quizId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+
     Categories:
       Type: AWS::DynamoDB::Table
       Properties:

@@ -22,14 +22,15 @@ export const handler = async (event) => {
       desiredQuestions,
       questionIds = [],
       totalQuestions,
+      timeLimit, 
       // Any other quiz-level fields can go here
     } = JSON.parse(event.body || "{}");
 
     // Validate required fields
-    if (!name || passingPerc == null || !category || !difficulty) {
+    if (!name || passingPerc == null || !category || !difficulty || !timeLimit) {
       return sendResponse(
         400,
-        "Missing required fields: name, passingPerc, category, difficulty",
+        "Missing required fields: name, passingPerc, category, difficulty, or timeLimit",
         null
       );
     }
@@ -82,6 +83,7 @@ export const handler = async (event) => {
       endDate,
       desiredQuestions,
       questionIds,
+      timeLimit
       // Any other quiz-level fields can go here
     };
 

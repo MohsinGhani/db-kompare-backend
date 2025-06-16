@@ -20,6 +20,9 @@ export const sendResponse = (statusCode, message, data) => {
 export const getTableName = (name) => {
   return `${name}`;
 };
+export const getTimestamp = () => {
+  return new Date().getTime();
+};
 
 export const getItem = (table, Key) => {
   const params = {
