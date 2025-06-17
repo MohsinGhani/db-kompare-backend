@@ -121,3 +121,12 @@ functions:
           method: get
           private: true
           cors: true
+          
+  updateQuizProgress:
+    handler: functions/quizzes/updateQuizProgress.handler
+    events:
+      - http:
+          path: /update-quiz-progress
+          method: put
+          private: true
+          cors: true
