@@ -1,10 +1,12 @@
 // src/functions/deleteQuestion.js
-import { sendResponse } from "../../helpers/helpers.js";
+import { checkAuthentication, sendResponse } from "../../helpers/helpers.js";
 import { deleteItem, getItem } from "../../helpers/dynamodb.js";
-import { TABLE_NAME } from "../../helpers/constants.js";
+import { TABLE_NAME, USER_ROLE } from "../../helpers/constants.js";
 
 export const handler = async (event) => {
   try {
+    await checkAuthentication(event, [USER_ROLE.ADMINS]);
+    
     const { id } = event.pathParameters || {};
 
     if (!id) {

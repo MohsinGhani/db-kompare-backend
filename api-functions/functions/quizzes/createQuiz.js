@@ -4,11 +4,17 @@ import {
   fetchAllItemByDynamodbIndex,
 } from "../../helpers/dynamodb.js";
 import { v4 as uuidv4 } from "uuid";
-import { QUERY_STATUS, TABLE_NAME } from "../../helpers/constants.js";
-import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
+import { QUERY_STATUS, TABLE_NAME, USER_ROLE } from "../../helpers/constants.js";
+import {
+  checkAuthentication,
+  getTimestamp,
+  sendResponse,
+} from "../../helpers/helpers.js";
 
 export const handler = async (event) => {
   try {
+    await checkAuthentication(event, [USER_ROLE.ADMINS]);
+
     const {
       name,
       passingPerc,
@@ -22,12 +28,18 @@ export const handler = async (event) => {
       desiredQuestions,
       questionIds = [],
       totalQuestions,
-      timeLimit, 
+      timeLimit,
       // Any other quiz-level fields can go here
     } = JSON.parse(event.body || "{}");
 
     // Validate required fields
-    if (!name || passingPerc == null || !category || !difficulty || !timeLimit) {
+    if (
+      !name ||
+      passingPerc == null ||
+      !category ||
+      !difficulty ||
+      !timeLimit
+    ) {
       return sendResponse(
         400,
         "Missing required fields: name, passingPerc, category, difficulty, or timeLimit",
@@ -83,7 +95,7 @@ export const handler = async (event) => {
       endDate,
       desiredQuestions,
       questionIds,
-      timeLimit
+      timeLimit,
       // Any other quiz-level fields can go here
     };
 

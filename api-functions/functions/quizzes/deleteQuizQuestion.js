@@ -1,11 +1,12 @@
 // src/functions/deleteQuizQuestion.js
 
-import { sendResponse } from "../../helpers/helpers.js";
+import { checkAuthentication, sendResponse } from "../../helpers/helpers.js";
 import { deleteItem, getItem } from "../../helpers/dynamodb.js";
-import { TABLE_NAME } from "../../helpers/constants.js";
+import { TABLE_NAME, USER_ROLE } from "../../helpers/constants.js";
 
 export const handler = async (event) => {
   try {
+    await checkAuthentication(event, [USER_ROLE.ADMINS]);
     // 1. Extract question ID from path parameters
     const { id } = event.pathParameters || {};
     if (!id) {
@@ -32,7 +33,11 @@ export const handler = async (event) => {
     }
 
     // 4. Return success with deleted attributes
-    return sendResponse(200, "Quiz question deleted successfully", deleted.Attributes);
+    return sendResponse(
+      200,
+      "Quiz question deleted successfully",
+      deleted.Attributes
+    );
   } catch (error) {
     console.error("Error deleting quiz question:", error);
     return sendResponse(500, "Internal server error", error.message);

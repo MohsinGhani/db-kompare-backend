@@ -1,10 +1,11 @@
-import { sendResponse } from "../../helpers/helpers.js";
+import { checkAuthentication, sendResponse } from "../../helpers/helpers.js";
 import { updateItemInDynamoDB } from "../../helpers/dynamodb.js";
-import { TABLE_NAME } from "../../helpers/constants.js";
+import { TABLE_NAME, USER_ROLE } from "../../helpers/constants.js";
 import { getItem } from "../../helpers/dynamodb.js";
 
 export const handler = async (event) => {
   try {
+    await checkAuthentication(event, [USER_ROLE.ADMINS]);
     // Get the question ID from the path parameters
     const { id } = event.pathParameters || {};
 

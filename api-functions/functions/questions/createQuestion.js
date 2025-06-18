@@ -4,8 +4,16 @@ import {
   fetchAllItemByDynamodbIndex,
 } from "../../helpers/dynamodb.js";
 import { v4 as uuidv4 } from "uuid";
-import { QUERY_STATUS, TABLE_NAME } from "../../helpers/constants.js";
-import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
+import {
+  QUERY_STATUS,
+  TABLE_NAME,
+  USER_ROLE,
+} from "../../helpers/constants.js";
+import {
+  checkAuthentication,
+  getTimestamp,
+  sendResponse,
+} from "../../helpers/helpers.js";
 import {
   TOPICS_CATEGORIES,
   SUPPORTED_RUNTIME,
@@ -15,6 +23,7 @@ import {
 
 export const handler = async (event) => {
   try {
+    await checkAuthentication(event, [USER_ROLE.ADMINS]);
     const {
       title,
       categories,

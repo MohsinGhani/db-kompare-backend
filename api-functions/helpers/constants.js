@@ -56,7 +56,10 @@ export const METRICES_TYPE = {
 export const USER_ROLE = {
   ADMIN: "ADMIN",
   VENDOR: "VENDOR",
+  ADMINS: "ADMINS",
+  VENDORS: "VENDORS",
 };
+
 export const USER_STATUS = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",

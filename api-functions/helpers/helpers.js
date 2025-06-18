@@ -1,5 +1,6 @@
 import moment from "moment";
-import { RESOURCE_TYPE } from "./constants.js";
+import { RESOURCE_TYPE, USER_ROLE } from "./constants.js";
+import { jwtDecode } from "jwt-decode";
 
 export const getTableName = (name) => {
   return `${name}`;
@@ -20,12 +21,29 @@ export const sendResponse = (statusCode, message, data) => {
     },
   };
 };
+
+export const checkAuthentication = async (
+  event,
+  allowedRoles = [USER_ROLE.VENDORS]
+) => {
+  const token = event.headers.Authorization || event.headers.authorization;
+  console.log("token", token);
+  if (!token) {
+    throw new Error("Unauthorized");
+  }
+  const payload = jwtDecode(token);
+  const role = payload["cognito:groups"]?.[0] ?? null;
+  console.log("role", role);
+  if (allowedRoles.includes(role)) {
+    return true;
+  } else {
+    throw new Error("Unauthorized");
+  }
+};
+
 export const getTimestamp = () => {
   return new Date().getTime();
 };
-
-export const convertToUnixTimestamp = (date) =>
-  Math.floor(new Date(date).getTime() / 1000);
 
 export const getDayTimestamps = (dateString) => {
   const date = new Date(dateString);
@@ -48,34 +66,6 @@ export const formatDateToCompact = (dateString) => {
   }
 
   return dateString.replace(/-/g, "");
-};
-
-export const generateMonthlyDateRanges = (year) => {
-  const dateRanges = [];
-  for (let month = 1; month <= 12; month++) {
-    const start = moment.utc([year, month - 1, 1]).format("YYYY-MM-DD");
-    const end = moment
-      .utc([year, month - 1])
-      .endOf("month")
-      .format("YYYY-MM-DD");
-    dateRanges.push({ start, end });
-  }
-  return dateRanges;
-};
-
-export const generateDailyDateRanges = (year) => {
-  const dateRanges = [];
-  const startOfYear = moment.utc([year, 0, 1]);
-  const endOfYear = moment.utc([year, 11, 31]);
-
-  let currentDate = startOfYear;
-  while (currentDate.isSameOrBefore(endOfYear)) {
-    const date = currentDate.format("YYYY-MM-DD");
-    dateRanges.push({ start: date, end: date });
-    currentDate.add(1, "day");
-  }
-
-  return dateRanges;
 };
 
 export const generateQueries = (name) => [
@@ -200,47 +190,4 @@ export const getPopularityByFormula = (resourceType, data) => {
     default:
       throw new Error("Invalid resource type");
   }
-};
-
-export const getMiddleDate = (date1, date2) => {
-  // Parse the dates using moment
-  const startDate = moment(date1);
-  const endDate = moment(date2);
-
-  // Check if both dates are valid
-  if (!startDate.isValid() || !endDate.isValid()) {
-    throw new Error("Invalid date(s) provided.");
-  }
-
-  // Calculate the difference between the two dates in milliseconds
-  const diffInMilliseconds = endDate.diff(startDate);
-
-  // Calculate the middle date by adding half of the difference to the start date
-  const middleDate = startDate.add(diffInMilliseconds / 2, "milliseconds");
-
-  // Return the middle date in desired format (e.g., "YYYY-MM-DD")
-  return middleDate.format("YYYY-MM-DD");
-};
-
-export const getAdjustedDates = () => {
-  // Get the current UTC time
-  const currentUtcTime = moment.utc();
-  console.log("currentUtcTime", currentUtcTime);
-  // Define the time threshold for 5:00 AM UTC
-  const thresholdTime = moment
-    .utc()
-    .set({ hour: 5, minute: 0, second: 0, millisecond: 0 });
-
-  // If the current time is before 5:00 AM UTC today, adjust to the previous day's dates
-  if (currentUtcTime.isBefore(thresholdTime)) {
-    currentUtcTime.subtract(1, "days"); // Subtract 1 day if before 5:00 AM UTC
-  }
-
-  // Get the startDate and endDate for the database, assuming they are dynamic
-  // Example: starting from current date
-  const startDate = currentUtcTime.subtract(3, "days").format("YYYY-MM-DD"); // Format as '2024-11-23'
-  const endDate = currentUtcTime.subtract(1, "days").format("YYYY-MM-DD"); // Add 2 days for endDate
-
-  // Return the adjusted dates
-  return { startDate, endDate };
 };

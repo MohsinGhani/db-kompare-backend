@@ -3,12 +3,22 @@ import {
   fetchAllItemByDynamodbIndex,
 } from "../../helpers/dynamodb.js";
 import { v4 as uuidv4 } from "uuid";
-import { QUERY_STATUS, TABLE_NAME } from "../../helpers/constants.js";
-import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
+import {
+  QUERY_STATUS,
+  TABLE_NAME,
+  USER_ROLE,
+} from "../../helpers/constants.js";
+import {
+  checkAuthentication,
+  getTimestamp,
+  sendResponse,
+} from "../../helpers/helpers.js";
 import { getCategoryIdByName } from "../common/categories.js";
 
 export const handler = async (event) => {
   try {
+    await checkAuthentication(event, [USER_ROLE.ADMINS]);
+
     // 1. Parse and validate input
     const questionArray = JSON.parse(event.body);
 
@@ -34,9 +44,7 @@ export const handler = async (event) => {
     // 3. Pre-fetch all unique categories needed
     const uniqueCategories = [
       ...new Set(
-        questionArray
-          .map((q) => (q.categoryy || categ).trim())
-          .filter(Boolean)
+        questionArray.map((q) => (q.categoryy || categ).trim()).filter(Boolean)
       ),
     ];
     // const uniqueCategories = [...new Set(
