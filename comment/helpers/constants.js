@@ -2,6 +2,7 @@ export const TABLE_NAME = {
   USERS: process.env.USERS_TABLE,
   COMMENTS: process.env.COMMENTS_TABLE,
   QUIZ_PROGRESS: process.env.QUIZ_PROGRESS_TABLE,
+  USER_ACHIEVEMENTS: process.env.USER_ACHIEVEMENTS_TABLE,
 };
 
 export const STATUS = {

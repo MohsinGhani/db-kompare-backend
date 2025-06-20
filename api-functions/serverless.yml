@@ -31,6 +31,7 @@ custom:
   quizzesSubmissionsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZZES_SUBMISSIONS_TABLE}
   certificatesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.CERTIFICATES_TABLE}
   categoriesTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.CATEGORIES_TABLE}
+  userAchievementsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USER_ACHIEVEMENTS_TABLE}
   
 
   COGNITO_CALLBACK_URLS:
@@ -81,6 +82,7 @@ provider:
     CATEGORIES_TABLE: db-kompare-categories-${self:provider.stage}
     CERTIFICATES_TABLE: db-kompare-certificates-${self:provider.stage}
     COMPANIES_TABLE: db-kompare-companies-${self:provider.stage}
+    USER_ACHIEVEMENTS_TABLE: db-kompare-user-achievements-${self:provider.stage}
     DATABASE_AGGREGATED_TABLE: db-kompare-database-aggregated-${self:provider.stage}
     DB_TOOLS_AGGREGATED_TABLE: db-kompare-dbtools-aggregated-${self:provider.stage}
     SUBMISSIONS_TABLE: db-kompare-submissions-${self:provider.stage}
@@ -131,6 +133,8 @@ provider:
             - ${self:custom.categoriesTableArn}/index/*
             - ${self:custom.fiddleTableArn}
             - ${self:custom.fiddleTableArn}/index/*
+            - ${self:custom.userAchievementsTableArn}
+            - ${self:custom.userAchievementsTableArn}/index/*
             - ${self:custom.quizzesTableArn}
             - ${self:custom.quizzesTableArn}/index/*
             - ${self:custom.quizzesQuestionsTableArn}

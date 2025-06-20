@@ -363,6 +363,35 @@ resources:
                 KeyType: HASH # GSI partition key for querying quizzes by category
             Projection:
               ProjectionType: ALL
+
+    UserAchievements:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: db-kompare-user-achievements-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S    # PK for all items
+          - AttributeName: sortKey
+            AttributeType: S    # SK distinguishing EVENT#, COUNTER#, NOTIF#…
+          - AttributeName: nextNotifyAt
+            AttributeType: S    # for the GSI on “streak-expire” notifications
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: sortKey
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: ByNextNotify
+            KeySchema:
+              - AttributeName: sortKey
+                KeyType: HASH       # fixed to "NOTIF#STREAK_EXPIRE"
+              - AttributeName: nextNotifyAt
+                KeyType: RANGE      # ISO timestamp when to fire
+            Projection:
+              ProjectionType: ALL
+
     QuizzesQuestions:
       Type: AWS::DynamoDB::Table
       Properties:

@@ -10,6 +10,7 @@ custom:
   commentsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.COMMENTS_TABLE}
   usersTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USERS_TABLE}
   quizProgressTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.QUIZ_PROGRESS_TABLE}
+  UserAchievementsTableArn: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.USER_ACHIEVEMENTS_TABLE}
 
   serverless-offline:
     httpPort: 4000
@@ -30,6 +31,7 @@ provider:
     COMMENTS_TABLE: db-kompare-comments-${self:provider.stage}
     USERS_TABLE: db-kompare-users-${self:provider.stage}
     QUIZ_PROGRESS_TABLE: db-kompare-user-quiz-progress-${self:provider.stage}
+    USER_ACHIEVEMENTS_TABLE: db-kompare-user-achievements-${self:provider.stage}
 
   apiGateway:
     apiKeys:
@@ -54,6 +56,8 @@ provider:
             - ${self:custom.commentsTableArn}/index/* # Permission for comments table indexes
             - ${self:custom.quizProgressTableArn} # Permission for quiz progress table
             - ${self:custom.quizProgressTableArn}/index/* # Permission for quiz progress table indexes
+            - ${self:custom.UserAchievementsTableArn} # Permission for user achievements table
+            - ${self:custom.UserAchievementsTableArn}/index/* # Permission for user achievements table indexes
 
 functions:
   createComment:
@@ -113,6 +117,7 @@ functions:
           method: post
           private: true
           cors: true
+
   getQuizProgress:
     handler: functions/quizzes/getQuizProgress.handler
     events:
@@ -128,5 +133,14 @@ functions:
       - http:
           path: /update-quiz-progress
           method: put
+          private: true
+          cors: true
+
+  processAchievement:
+    handler: functions/user-achievements/processAchievement.handler
+    events:
+      - http:
+          path: /process-achievement
+          method: post
           private: true
           cors: true
