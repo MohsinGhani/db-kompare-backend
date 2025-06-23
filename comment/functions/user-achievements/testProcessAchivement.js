@@ -1,14 +1,10 @@
-/**
- * achievementEventProcessor.js
- *
- * Purpose:
- *  - Receive achievement events from the client (LOGIN, GEMS, XP)
- *  - Record each event in DynamoDB for a complete history
- *  - Atomically update the corresponding user counters (consecutive-days, streaks, gems, XP)
- *  - Award a streak point after configurable consecutive days
- *  - If the user misses a configured number of days, send reminder; on break day, reset the streak
- *  - Return new metrics back to the caller
- */
+//------------------------------------------------------------
+// THIS IS A TEST FILE, DO NOT DEPLOY IT!
+
+// This file is used to test the processAchievement function locally.
+// -----------------------------------------------------------
+
+
 
 import { TABLE_NAME } from "../../helpers/constants.js";
 import {
@@ -20,19 +16,30 @@ import { getTimestamp, sendResponse } from "../../helpers/helpers.js";
 import { DateTime } from "luxon";
 
 // Configuration: easily tweak these values
+// Set BUILD_UP_DAYS to 1 for daily streaks, 3 for every 3rd day, etc.
 const BUILD_UP_DAYS       = 3;               // days to earn one streak point
 const REMINDER_DELAY_DAYS = 3;               // days of inactivity before sending reminder
 const BREAK_AFTER_DAYS    = 1;               // days after reminder before breaking streak
 const NOTIF_LEAD_TIME_SEC = 3 * 60 * 60;     // lead time (in seconds) before notifications
 
+
+const payloadExample = {
+  userId: "user123",
+    eventType: "LOGIN", // or "GEMS", "XP"
+    delta: 100, // required for GEMS/XP, ignored for LOGIN
+    reason: "Daily login", // optional, for additional context
+    overrideNow: "2023-10-01T12:00:00Z" // optional, ISO timestamp to simulate "now" for testing
+};
+
 export const handler = async (event) => {
   try {
-    // 1) Parse & validate input
+    // 1) Parse & validate input (including optional overrideNow for testing)
     const {
       userId,
       eventType,
       delta,
-      reason
+      reason,
+      overrideNow      // ISO timestamp string to simulate "now"
     } = JSON.parse(event.body || "{}");
 
     if (!userId || !["LOGIN", "GEMS", "XP"].includes(eventType)) {
@@ -43,8 +50,10 @@ export const handler = async (event) => {
       return sendResponse(400, "For GEMS/XP events, delta must be a positive number");
     }
 
-    // 2) Generate timestamps
-    const tsMs = getTimestamp();
+    // 2) Determine timestamp (allow override for static testing)
+    const tsMs = overrideNow
+      ? DateTime.fromISO(overrideNow).toMillis()
+      : getTimestamp();
     const ts   = new Date(tsMs).toISOString();
     const now  = DateTime.fromMillis(tsMs).toUTC();
 
@@ -101,7 +110,7 @@ export const handler = async (event) => {
         ExpressionAttributeValues: { ":val": consecDays, ":now": ts },
       });
 
-      // Award a streak point if this login just hit BUILD_UP_DAYS
+      // Award a streak point on every multiple of BUILD_UP_DAYS
       if (consecDays % BUILD_UP_DAYS === 0 && daysSince === 1) {
         const streakKey = { userId, sortKey: "COUNTER#STREAK" };
         const streakRes = await getItem(TABLE_NAME.USER_ACHIEVEMENTS, streakKey);
@@ -171,6 +180,3 @@ export const handler = async (event) => {
     return sendResponse(500, "Internal error processing achievement event", error.message || error);
   }
 };
-
-
-

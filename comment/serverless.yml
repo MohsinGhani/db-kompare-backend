@@ -33,6 +33,7 @@ provider:
     QUIZ_PROGRESS_TABLE: db-kompare-user-quiz-progress-${self:provider.stage}
     USER_ACHIEVEMENTS_TABLE: db-kompare-user-achievements-${self:provider.stage}
 
+
   apiGateway:
     apiKeys:
       - name: comment-key
@@ -136,6 +137,7 @@ functions:
           private: true
           cors: true
 
+# ---------------USER ACHIEVEMENTS FUNCTIONS-------------
   processAchievement:
     handler: functions/user-achievements/processAchievement.handler
     events:
@@ -144,3 +146,10 @@ functions:
           method: post
           private: true
           cors: true
+          
+  # This function is used to process reminders for user streaks
+  # processReminderForStreak:
+  #   handler: functions/user-achievements/processReminderForStreak.handler
+  #   events:
+  #     - schedule:
+  #         rate: rate(1 hour) # Runs every hour
