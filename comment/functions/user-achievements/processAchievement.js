@@ -168,7 +168,7 @@ export const handler = async (event) => {
     });
   } catch (error) {
     console.error("Error processing achievement event:", error);
-    return sendResponse(500, "Internal error processing achievement event", error.message || error);
+    return sendResponse(500, error.message, null);
   }
 };
 
