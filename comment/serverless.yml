@@ -153,3 +153,14 @@ functions:
   #   events:
   #     - schedule:
   #         rate: rate(1 hour) # Runs every hour
+
+  # --------------- STRIPE FUNCTIONS -------------
+
+  createPayemtIntent:
+    handler: functions/user-payments/createPayemtIntent.handler
+    events:
+      - http:
+          path: /create-payment-intent
+          method: post
+          private: true
+          cors: true
